@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="solr-solrj-6.2.0">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/../solr-6.2.0/dist/solr-solrj-6.2.0.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

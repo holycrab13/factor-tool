@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="commons-io-2.5">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/../solr-6.2.0/dist/solrj-lib/commons-io-2.5.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>
