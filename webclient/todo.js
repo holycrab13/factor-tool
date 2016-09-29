@@ -213,7 +213,7 @@ function printPins() {
 			var index = $(this).index();
 			
 			$("#pin-title").html(pins[index].text);
-			$("#pin-marker").animate({ top: 51 * index }, 300, function() {
+			$("#pin-marker").animate({ top: 41 * index }, 300, function() {
 				if(searchObject != pins[index]) {
 					searchObject = pins[index];	
 					search();
@@ -264,28 +264,40 @@ function printFilters() {
 	var list = $('#filter-list');
 	list.empty();
 	
-	$.each(filters, function( index, value ) {
+	for(var i = 0; i < Math.min(4, filters.length); i++) {
+		
 		var listItem = $('<li/>')
 			.addClass('filter-item')
-			.attr('id', 'pin-' + value.text)
+			.attr('id', 'pin-' + filters[i].text)
 			.appendTo(list);
 			
-		if(value.passive == 'true') {
+		if(filters[i].passive == 'true') {
 			var text = $('<a/>')
-				.text(searchObject.text + " with " + value.text + " being " + value.target.text)
+				.text(searchObject.text + " with " + filters[i].text + " being " + filters[i].target.text)
 				.appendTo(listItem);
 		} else {
 			var text = $('<a/>')
-				.text(searchObject.text + " being " + value.text + " of " + value.target.text)
+				.text(searchObject.text + " being " + filters[i].text + " of " + filters[i].target.text)
 				.appendTo(listItem);
 			
 		}
 		
 		listItem.click(function() {
-			value.active = !value.active;
+			filters[i].active = !filters[i].active;
 		});
-	});
+		
+	}
 	
+	if(filters.length > 4) {
+		var listItem = $('<li/>')
+				.addClass('filter-item')
+				.attr('id', 'pin-more')
+				.appendTo(list);
+				
+		var text = $('<a/>')
+			.text("+ More")
+			.appendTo(listItem);
+	}
 }
 
 function findFilters() {
