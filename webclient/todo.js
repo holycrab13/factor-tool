@@ -13,16 +13,20 @@ var init = true;
 
 var searchTerm = "";
 
-var searchInput = $("#pin-input");
+var searchInput = $("#search-input");
 
-var autocompleteList = $('#pin-autocomplete');
+var autocompleteList = $('#autocomplete');
 
 setInterval(function() { 
 	var input = searchInput.val();
 	
 	if(searchTerm != input) {
 		searchTerm = input;
-		searchInput.width(searchTerm.length * 15 + 30);
+		
+		var w = searchTerm.length * 12 + 30;
+		if(w > 200) {
+			$("#search-input").animate({ width: w }, 50);
+		}
 		
 		autoComplete(searchTerm, autocompleteList);		
 	}
@@ -84,20 +88,22 @@ $("#search-input").keydown(function (e) {
 });
 
 
-$("#pin-bar").click(function() {
-	if(!$("#search-bar").hasClass("deco")) {
-		$("#search-bar").addClass("deco");
+$("#search-bar").click(function() {
+	if($("#search-input").hasClass("hidden")) {
+		$("#search-input").toggleClass("hidden");
+		$("#search-icon").toggleClass("hidden");
 		
-		$("#pin-form").toggleClass("active");
-		$("#pin-title").toggleClass("hide");
-		$("#pin-marker").toggleClass("init");
+		$("#search-form").animate({ width: 100 + '%' }, 300, function() {
+			$("#search-input").animate({ width: 200 }, 300, function() {
+				$("#search-input").focus();
+			});
+			
+		});
 		
 		
-		
-
 	}
 	
-	$("#pin-input").focus();
+	
 });
 
 
@@ -145,6 +151,19 @@ $("#search-form").submit(function( event ) {
 	event.preventDefault();
 
 	if(suggestions.length > 0) {
+		
+		if(pins.length == 0) {
+			$("#search-bar").animate({ top: 0 }, 300, function() {
+				
+			});
+			
+			$("#logo").animate({ height: 50 }, 300, function() {
+				
+			});
+			
+			$("#pin-bar").toggleClass("hidden");
+
+		}
 	
 		$("#search-input").val("");
 		var pin = { text: suggestions[0].name, uri: suggestions[0].uri, isClass: true };
@@ -205,21 +224,45 @@ function printPins() {
 			.addClass('pin-item')
 			.attr('id', 'pin-' + value.text)
 			.appendTo(list);
-		var text = $('<a/>')
-			.text(value.text)
-			.appendTo(listItem);
 			
-		listItem.click(function() {
-			var index = $(this).index();
+		var table = $('<div/>').addClass('inline-table').appendTo(listItem);
+		var row = $('<div/>').addClass('inline-row').appendTo(table);
+		
+		var markerLeft = $('<div/>').addClass('inline-cell marker-cell').appendTo(row);
+		var arrowCellLeft = $('<div/>').addClass('inline-cell arrow-cell').appendTo(row);	
+		var arrowLeft = $('<div/>').addClass('arrow-right').appendTo(arrowCellLeft);	
+		
+		var content = $('<div/>').addClass('inline-cell').appendTo(row);
+		var text = $('<a/>').text(value.text).appendTo(content);
+		
+		var arrowCellRight = $('<div/>').addClass('inline-cell arrow-cell').appendTo(row);	
+		var arrowRight = $('<div/>').addClass('arrow-left').appendTo(arrowCellRight);	
+		var markerRight = $('<div/>').addClass('inline-cell marker-cell').appendTo(row);
+		
+		markerLeft.click(function() {
+			var item = $(this);
 			
-			$("#pin-title").html(pins[index].text);
-			$("#pin-marker").animate({ top: 41 * index }, 300, function() {
+			item.addClass('active');
+			item.next().addClass('active');
+			item.animate({ width: 70 }, 200, function() {
+				var index = item.parent().parent().parent().index();
 				if(searchObject != pins[index]) {
 					searchObject = pins[index];	
 					search();
 				}
 			});
+			
+			
 		});
+		
+		
+		markerRight.click(function() {
+			$(this).addClass('active');
+			$(this).prev().addClass('active');
+			$(this).animate({ width: 70 }, 200);
+		});
+			
+	
 	});
 
 }
@@ -263,6 +306,13 @@ function printResults() {
 function printFilters() {
 	var list = $('#filter-list');
 	list.empty();
+	
+	if(filters.length == 0) {
+		$('#filter-bar').addClass('hidden');
+	} else {
+		$('#filter-bar').removeClass('hidden');
+	}
+	
 	
 	for(var i = 0; i < Math.min(4, filters.length); i++) {
 		

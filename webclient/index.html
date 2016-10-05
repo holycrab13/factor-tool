@@ -13,66 +13,44 @@
 	<body>
 	
 		<div id="background">
-				
-			<div id="search-bar"> 
-				<div class="line-container">
-				
-					
-					
-					<div class="line-container-fill">
-						<form id="search-form">
-							<div class="line-container">
-								<input id="search-input" autocomplete="off"></input>
-								<input type="submit" style="position: absolute; left: -9999px"/>
-								<div class="line-container-fill">
-									<ul id="autocomplete">
-																
-									</ul>
-								</div>
-							</div>
-						</form>
-					</div>
-				</div>
-			</div>
 			
-			<div id="pin-bar">
-				
-				<div id="pin-content">
-					<div id="pin-marker">
-						<div class="line-container">
-							<div class="line-container-icon">
+			<div id="search-bar"> 
+				<img id="logo" src="logo.png"></img>						
+				<form id="search-form">
+					<div class="inline-table">
+						<div class="inline-row">
+							<div id="input-cell" class="inline-cell">
 								<img id="search-icon" src="search_icon.png"></img>
+								<input id="search-input" class="hidden" autocomplete="off"></input>
+								<input type="submit" style="position: absolute; left: -9999px"/>
 							</div>
-							
-							<div id="pin-title" class="line-container-title">Factor</div>
-							
-							<!-- form for first input -->
-							
-							<div class="line-container-fill">
-								<form id="pin-form">
-									<div class="line-container">
-										<input id="pin-input" autocomplete="off"></input>
-										<input type="submit" style="position: absolute; left: -9999px"/>
-										<div class="line-container-fill">
-											<ul id="pin-autocomplete">
-											
-											</ul>
-										</div>
-									</div>					
-									
-								</form>
+							<div class="inline-cell arrow-cell blue">
+								<div class="arrow-right"></div>
+							</div>
+							<div id="autofill-cell" class="inline-cell">
+								<ul id="autocomplete">
+								
+								</ul>
 							</div>
 						</div>
 					</div>
-					<ul id="pin-list">
+				</form>
+				
+				
+			
+				<div id="pin-bar" class="hidden" >
+				
+					<div id="pin-content">
+					
+						<ul id="pin-list">
 						
-					</ul>
+						</ul>
+					</div>
+				
 				</div>
 				
-			</div>
-			
-			<div id="filter-bar">
-				
+				<div id="filter-bar" class="hidden">
+				<div id="filter-header">Filters</div>
 				<ul id="filter-list">
 						
 				</ul>
@@ -86,6 +64,15 @@
 				</ul>
 			
 			</div>
+			
+			</div>
+			
+			
+			
+			
+			
+			
+			
 			
 					
 		
