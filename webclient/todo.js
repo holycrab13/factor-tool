@@ -1,6 +1,8 @@
 
 var pins = [];
 
+var pinListItems = [];
+
 var result = [];
 
 var filters = []
@@ -8,6 +10,10 @@ var filters = []
 var suggestions = [];
 
 var searchObject;
+
+var leftObject;
+
+var rightObject;
 
 var init = true;
 
@@ -164,9 +170,11 @@ $("#search-form").submit(function( event ) {
 			$("#pin-bar").toggleClass("hidden");
 
 		}
+		
+		var isOntologyClass = suggestions[0].uri[0].includes("http://dbpedia.org/ontology");
 	
 		$("#search-input").val("");
-		var pin = { text: suggestions[0].name, uri: suggestions[0].uri, isClass: true };
+		var pin = { text: suggestions[0].name[0], uri: suggestions[0].uri[0], isClass: isOntologyClass };
 
 		pushPin(pin);
 		findFilters();
@@ -222,50 +230,47 @@ function printPins() {
 	$.each(pins, function( index, value ) {
 		var listItem = $('<li/>')
 			.addClass('pin-item')
-			.attr('id', 'pin-' + value.text)
+			.attr('id', 'pin-' + index)
 			.appendTo(list);
 			
 		var table = $('<div/>').addClass('inline-table').appendTo(listItem);
 		var row = $('<div/>').addClass('inline-row').appendTo(table);
 		
-		var markerLeft = $('<div/>').addClass('inline-cell marker-cell').appendTo(row);
-		var arrowCellLeft = $('<div/>').addClass('inline-cell arrow-cell').appendTo(row);	
+		var markerLeft = $('<div/>').addClass('inline-cell marker-cell left').appendTo(row);
+		var arrowCellLeft = $('<div/>').addClass('inline-cell arrow-cell left').appendTo(row);	
 		var arrowLeft = $('<div/>').addClass('arrow-right').appendTo(arrowCellLeft);	
 		
 		var content = $('<div/>').addClass('inline-cell').appendTo(row);
 		var text = $('<a/>').text(value.text).appendTo(content);
 		
-		var arrowCellRight = $('<div/>').addClass('inline-cell arrow-cell').appendTo(row);	
-		var arrowRight = $('<div/>').addClass('arrow-left').appendTo(arrowCellRight);	
-		var markerRight = $('<div/>').addClass('inline-cell marker-cell').appendTo(row);
 		
-		markerLeft.click(function() {
-			var item = $(this);
+		
+		listItem.click(function() {
 			
-			item.addClass('active');
-			item.next().addClass('active');
-			item.animate({ width: 70 }, 200, function() {
-				var index = item.parent().parent().parent().index();
-				if(searchObject != pins[index]) {
-					searchObject = pins[index];	
-					search();
-				}
-			});
+			searchObject = pins[index];
 			
+			togglePin('pin-' + index);
+			
+			setTimeout(function() {
+				search();
+			}, 250);			
 			
 		});
 		
-		
-		markerRight.click(function() {
-			$(this).addClass('active');
-			$(this).prev().addClass('active');
-			$(this).animate({ width: 70 }, 200);
-		});
+	
 			
 	
 	});
-
 }
+
+function togglePin(id) {
+	var list = $('#pin-list').find('.active');
+	list.removeClass('active');
+	$('#' + id).addClass('active');	
+}
+
+
+
 
 function printAutoComplete() {
 	
@@ -285,6 +290,12 @@ function printAutoComplete() {
 function printResults() {
 	var list = $('#result-list');
 	list.empty();
+	
+	if(result.length == 0) {
+		$('#results').addClass('hidden');
+	} else {
+		$('#results').removeClass('hidden');
+	}
 		
 	$.each(result, function( index, value ) {
 		var listItem = $('<li/>')
@@ -318,23 +329,39 @@ function printFilters() {
 		
 		var listItem = $('<li/>')
 			.addClass('filter-item')
-			.attr('id', 'pin-' + filters[i].text)
+			.attr('id', 'filter-' + i)
 			.appendTo(list);
 			
+		var table = $('<div/>').addClass('inline-table').appendTo(listItem);
+		var row = $('<div/>').addClass('inline-row').appendTo(table);
+		
+		var markerLeft = $('<div/>').addClass('inline-cell marker-cell left').appendTo(row);
+		var arrowCellLeft = $('<div/>').addClass('inline-cell arrow-cell left').appendTo(row);	
+		var arrowLeft = $('<div/>').addClass('arrow-right').appendTo(arrowCellLeft);	
+		
+		var content = $('<div/>').addClass('inline-cell').appendTo(row);
+		
 		if(filters[i].passive == 'true') {
-			var text = $('<a/>')
-				.text(searchObject.text + " with " + filters[i].text + " being " + filters[i].target.text)
-				.appendTo(listItem);
+			var text = $('<a/>').text(searchObject.text + " with " + filters[i].text + " being " + filters[i].target.text).appendTo(content);
 		} else {
-			var text = $('<a/>')
-				.text(searchObject.text + " being " + filters[i].text + " of " + filters[i].target.text)
-				.appendTo(listItem);
-			
+			var text = $('<a/>').text(searchObject.text + " being " + filters[i].text + " of " + filters[i].target.text).appendTo(content);
 		}
 		
+		
+		
 		listItem.click(function() {
-			filters[i].active = !filters[i].active;
+			
+			$(this).toggleClass('active');	
+
+			
+			setTimeout(function() {
+				// filters[i].active = !filters[i].active;
+			}, 250);
+			
 		});
+		
+		
+		
 		
 	}
 	
@@ -357,12 +384,15 @@ function findFilters() {
 	if(searchObject != null && searchObject.isClass) {
 		
 		$.each(pins, function( index, value ) {
+				
 			if(value.isClass) {
 				findTypeFilters(value, searchObject);
 			} else {
 				findInstanceFilters(value, searchObject);
 			}
+			
 		});
+		
 	} else {
 		printFilters();
 	}
