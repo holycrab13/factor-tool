@@ -11,8 +11,8 @@ body {
 	padding: 0px 10px;
 	margin-top: 10%;
 	width: 100%;
+		text-align: center;
 	box-sizing: border-box;
-	text-align: center;
 }
 
 #logo {
@@ -124,11 +124,20 @@ body {
 	
 }
 
+.sections {
+	
+	-webkit-column-count: 2;
+    column-count: 2; /* the standard property after all prefixed ones */
+	width: 100%;
+}
 .section {
+	display: inline-block;
 	text-align: left;
 	position: relative;
 	margin-top: 10px;
+	margin-right: 10px;
 	width: 100%;
+	min-width: 300px;
 	background-color: #ffffff;
 	border-color: #D0D0D0;
 	border-style: solid;
@@ -182,8 +191,16 @@ body {
 	color: #ffffff;
 }
 
+#filter-section .list-item i {
+	display: none;
+}
+
 #filter-section .list-item.active {
 	background-color: #f9c26c;
+}
+
+#filter-section .list-item.active i  {
+	display: block;
 }
 
 #autofill-cell {

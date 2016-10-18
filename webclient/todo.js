@@ -197,6 +197,11 @@ function search() {
 	$.each(filters, function( index, value ) {
 		
 		if(value.active) {
+			
+			if(value.inverse) {
+				query += " FILTER NOT EXISTS {";
+			}
+			
 			if(!value.target.isClass) {
 				if(value.passive == 'false') { 
 					query += " <" + value.target.uri + "> <" + value.uri + "> ?s.";
@@ -213,6 +218,10 @@ function search() {
 				}
 				
 				i++;
+			}
+			
+			if(value.inverse) {
+				query += "} ";
 			}
 		}
 	
@@ -376,13 +385,28 @@ function printFilters() {
 			.addClass('list-item-text').appendTo(listItem);
 		}
 		
+		var negate = $('<i/>')
+			.text('add')
+			.appendTo(listItem)
+			.addClass('remove-button material-icons');
+			
 		
 		
 		listItem.click(function() {
+			if(!filters[index].active) {
+				filters[index].active = true;
+				filters[index].inverse = false;
+				negate.html('add');
+				$(this).toggleClass('active');	
+			} else if(!filters[index].inverse) {
+				filters[index].inverse = true;
+				negate.html('remove');
+			} else {
+				$(this).toggleClass('active');	
+				filters[index].active = false;
+			}
 			
-			$(this).toggleClass('active');	
-			filters[index].active = !filters[index].active;
-			
+
 			search();	
 		});
 		
@@ -449,7 +473,7 @@ function queryFilters(queryUrl, targetObject) {
 				//Get the property name from the uri
 				var resultText = resultUri.split('\\').pop().split('/').pop().replace(/([a-z](?=[A-Z]))/g, '$1 ').replace(/([A-Z])/g, function(str){ return str.toLowerCase(); });
 				
-				filters.push({ text: resultText, uri : resultUri, active: false, passive: resultPassive, target: targetObject});
+				filters.push({ text: resultText, uri : resultUri, active: false, passive: resultPassive, target: targetObject, inverse: false});
 			}
 			
 			
