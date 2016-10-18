@@ -4,7 +4,7 @@
 <html>
 	<head>
 		<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
-
+		<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 		<link rel="stylesheet" href="css/font-awesome.min.css">
 		<link rel="stylesheet" href="style.css">
 	</head>
@@ -12,71 +12,53 @@
 	
 	<body>
 	
-		<div id="background">
-			
-			<div id="search-bar"> 
-				<img id="logo" src="logo.png"></img>						
-				<form id="search-form">
-					<div class="inline-table">
-						<div class="inline-row">
-							<div id="input-cell" class="inline-cell">
-								<img id="search-icon" src="search_icon.png"></img>
-								<input id="search-input" class="hidden" autocomplete="off"></input>
-								<input type="submit" style="position: absolute; left: -9999px"/>
-							</div>
-							<div class="inline-cell arrow-cell blue">
-								<div class="arrow-right"></div>
-							</div>
-							<div id="autofill-cell" class="inline-cell">
-								<ul id="autocomplete">
-								
-								</ul>
-							</div>
+		<div id="content"> 
+			<img id="logo" src="logo.png"></img>						
+			<form id="search-bar">
+				<div class="inline-table">
+					<div class="inline-row">
+						<div id="input-cell" class="inline-cell">
+							<img id="search-icon" src="search_icon.png"></img>
+							<input id="search-input" class="hidden" autocomplete="off"></input>
+							<input type="submit" style="position: absolute; left: -9999px"/>
+						</div>
+						<div class="inline-cell arrow-cell blue">
+							<div class="arrow-right"></div>
+						</div>
+						<div id="autofill-cell" class="inline-cell">
+							<ul id="autocomplete">
+							
+							</ul>
 						</div>
 					</div>
-				</form>
-				
-				
-			
-				<div id="pin-bar" class="hidden" >
-				
-					<div id="pin-content">
-						<div class="section-header">Pins</div>
-						<ul id="pin-list">
-						
-						</ul>
-					</div>
-				
 				</div>
-				
-				<div id="filter-bar" class="hidden">
-					<div class="section-header">Filters</div>
-					<ul id="filter-list">
-							
-					</ul>
-				</div>
-				
-				<div id="results" class="hidden">
-					<div class="section-header">Results</div>
-					<ul id="result-list">
-							
-					</ul>
-				</div>
-			
-			
+			</form>
+
+			<div id="pin-section" class="section hidden" >
+				<div class="section-header">Search Bag</div>
+				<ul id="pin-list"></ul>
 			</div>
 			
+			<div id="filter-section" class="section hidden">
+				<div class="section-header">Filters</div>
+				<ul id="filter-list"></ul>
+			</div>
 			
-			
-			
-			
-			
-			
-			
-					
+			<div id="result-section" class="section hidden">
+				<div class="section-header">Results</div>
+				<ul id="result-list"></ul>
+			</div>
+		
 		
 		</div>
-	
+			
+			
+			
+			
+			
+			
+			
+		
 	
 			
 	

@@ -94,22 +94,18 @@ $("#search-input").keydown(function (e) {
 });
 
 
-$("#search-bar").click(function() {
+$("#content").click(function() {
 	if($("#search-input").hasClass("hidden")) {
 		$("#search-input").toggleClass("hidden");
 		$("#search-icon").toggleClass("hidden");
 		
-		$("#search-form").animate({ width: 100 + '%' }, 300, function() {
+		$("#search-bar").animate({ width: 100 + '%' }, 300, function() {
 			$("#search-input").animate({ width: 200 }, 300, function() {
 				$("#search-input").focus();
 			});
 			
-		});
-		
-		
+		});	
 	}
-	
-	
 });
 
 
@@ -121,9 +117,9 @@ $("#pin-form").submit(function( event ) {
 	if(suggestions.length > 0) {
 		
 		$("#pin-form").toggleClass("active");
-		$("#search-form").toggleClass("active");
 		$("#search-bar").toggleClass("active");
-		$("#pin-bar").toggleClass("active");
+		$("#content").toggleClass("active");
+		$("#pin-section").toggleClass("active");
 		$("#pin-title").toggleClass("hide");
 		$("#pin-marker").toggleClass("active");
 		
@@ -135,7 +131,7 @@ $("#pin-form").submit(function( event ) {
 		pushPin(pin);
 		
 		
-		$("#search-bar").one('webkitTransitionEnd otransitionend oTransitionEnd msTransitionEnd transitionend',   
+		$("#content").one('webkitTransitionEnd otransitionend oTransitionEnd msTransitionEnd transitionend',   
 			function(e) {
 			if(init) {
 				$("#background").toggleClass("active");
@@ -152,14 +148,14 @@ $("#pin-form").submit(function( event ) {
 	}
 });
 
-$("#search-form").submit(function( event ) {
+$("#search-bar").submit(function( event ) {
 	
 	event.preventDefault();
 
 	if(suggestions.length > 0) {
 		
 		if(pins.length == 0) {
-			$("#search-bar").animate({ top: 0 }, 300, function() {
+			$("#content").animate({ marginTop: 0 }, 300, function() {
 				
 			});
 			
@@ -167,31 +163,64 @@ $("#search-form").submit(function( event ) {
 				
 			});
 			
-			$("#pin-bar").toggleClass("hidden");
+			$("#pin-section").toggleClass("hidden");
 
 		}
 		
 		var isOntologyClass = suggestions[0].uri[0].includes("http://dbpedia.org/ontology");
 	
 		$("#search-input").val("");
+		
+		
+		
 		var pin = { text: suggestions[0].name[0], uri: suggestions[0].uri[0], isClass: isOntologyClass };
 
 		pushPin(pin);
-		findFilters();
+		findFilters ();
 	}
 });
 
 function search() {
 	
 	result = [];
-	filters = [];
 	
-	findFilters();
+	if(searchObject == null || !searchObject.isClass) {
+		$('#result-list').empty();
+		return;
+	}
 	
 	//Build a query from the search object
-	var query = "SELECT distinct ?s WHERE { ?s a <" + searchObject.uri + ">. } limit 200";
+	var query = "SELECT distinct ?s WHERE { ?s a <" + searchObject.uri + ">.";
 	
+	var i = 0;
 	
+	$.each(filters, function( index, value ) {
+		
+		if(value.active) {
+			if(!value.target.isClass) {
+				if(value.passive == 'false') { 
+					query += " <" + value.target.uri + "> <" + value.uri + "> ?s.";
+				} else {
+					query += " ?s <" + value.uri + "> <" + value.target.uri + ">.";
+				}
+			} else {
+				var o = " ?o" + i;
+				
+				if(value.passive == 'false') {
+					query += o + " <" + value.uri + "> ?s." + o + " a <" + value.target.uri + ">."
+				} else {
+					query += " ?s <" + value.uri + "> " + o + " ." + o + " a <" + value.target.uri + ">."
+				}
+				
+				i++;
+			}
+		}
+	
+	});
+	
+	query += "} limit 200"
+	
+		
 	var queryUrl = "http://dbpedia.org/sparql?default-graph-uri=http%3A%2F%2Fdbpedia.org&query="+ encodeURIComponent(query);
 	//Send out the query via ajax
 	$.ajax({
@@ -228,35 +257,41 @@ function printPins() {
 	list.empty();
 	
 	$.each(pins, function( index, value ) {
+		
 		var listItem = $('<li/>')
-			.addClass('pin-item')
+			.addClass('list-item')
 			.attr('id', 'pin-' + index)
 			.appendTo(list);
+		var text = $('<a/>')
+			.text(value.text)
+			.appendTo(listItem)
+			.addClass('list-item-text');
+		var remove = $('<i/>')
+			.text('clear')
+			.appendTo(listItem)
+			.addClass('remove-button material-icons');
 			
-		var table = $('<div/>').addClass('inline-table').appendTo(listItem);
-		var row = $('<div/>').addClass('inline-row').appendTo(table);
-		
-		var markerLeft = $('<div/>').addClass('inline-cell marker-cell left').appendTo(row);
-		var arrowCellLeft = $('<div/>').addClass('inline-cell arrow-cell left').appendTo(row);	
-		var arrowLeft = $('<div/>').addClass('arrow-right').appendTo(arrowCellLeft);	
-		
-		var content = $('<div/>').addClass('inline-cell').appendTo(row);
-		var text = $('<a/>').text(value.text).appendTo(content);
-		
-		
-		
+			
+		remove.click(function() {
+			
+			 pins.splice(index, 1);
+			 printPins();
+		});
+	
 		listItem.click(function() {
 			
 			searchObject = pins[index];
 			
 			togglePin('pin-' + index);
-			
-			setTimeout(function() {
-				search();
-			}, 250);			
+	
+			findFilters();
+			search();						
 			
 		});
 		
+		if(searchObject != null && searchObject.uri == pins[index].uri) {
+			togglePin('pin-' + index);
+		}
 	
 			
 	
@@ -292,19 +327,20 @@ function printResults() {
 	list.empty();
 	
 	if(result.length == 0) {
-		$('#results').addClass('hidden');
+		$('#result-section').addClass('hidden');
 	} else {
-		$('#results').removeClass('hidden');
+		$('#result-section').removeClass('hidden');
 	}
 		
 	$.each(result, function( index, value ) {
 		var listItem = $('<li/>')
-			.addClass('result-item')
-			.attr('id', 'pin-' + value.text)
+			.addClass('list-item')
+			.attr('id', 'result-' + value.text)
 			.appendTo(list);
 		var text = $('<a/>')
 			.text(value.text)
-			.appendTo(listItem);
+			.appendTo(listItem)
+			.addClass('list-item-text');
 			
 		listItem.click(function() {
 			pushPin(value);
@@ -319,32 +355,25 @@ function printFilters() {
 	list.empty();
 	
 	if(filters.length == 0) {
-		$('#filter-bar').addClass('hidden');
+		$('#filter-section').addClass('hidden');
 	} else {
-		$('#filter-bar').removeClass('hidden');
+		$('#filter-section').removeClass('hidden');
 	}
 	
+	$.each(filters, function( index, value ) {
 	
-	for(var i = 0; i < Math.min(4, filters.length); i++) {
-		
 		var listItem = $('<li/>')
-			.addClass('filter-item')
-			.attr('id', 'filter-' + i)
+			.addClass('list-item')
+			.attr('id', 'filter-' + index)
 			.appendTo(list);
-			
-		var table = $('<div/>').addClass('inline-table').appendTo(listItem);
-		var row = $('<div/>').addClass('inline-row').appendTo(table);
 		
-		var markerLeft = $('<div/>').addClass('inline-cell marker-cell left').appendTo(row);
-		var arrowCellLeft = $('<div/>').addClass('inline-cell arrow-cell left').appendTo(row);	
-		var arrowLeft = $('<div/>').addClass('arrow-right').appendTo(arrowCellLeft);	
 		
-		var content = $('<div/>').addClass('inline-cell').appendTo(row);
-		
-		if(filters[i].passive == 'true') {
-			var text = $('<a/>').text(searchObject.text + " with " + filters[i].text + " being " + filters[i].target.text).appendTo(content);
+		if(filters[index].passive == 'true') {
+			var text = $('<a/>').text(searchObject.text + " with " + filters[index].text + " being " + filters[index].target.text)
+			.addClass('list-item-text').appendTo(listItem);
 		} else {
-			var text = $('<a/>').text(searchObject.text + " being " + filters[i].text + " of " + filters[i].target.text).appendTo(content);
+			var text = $('<a/>').text(searchObject.text + " being " + filters[index].text + " of " + filters[index].target.text)
+			.addClass('list-item-text').appendTo(listItem);
 		}
 		
 		
@@ -352,29 +381,17 @@ function printFilters() {
 		listItem.click(function() {
 			
 			$(this).toggleClass('active');	
-
+			filters[index].active = !filters[index].active;
 			
-			setTimeout(function() {
-				// filters[i].active = !filters[i].active;
-			}, 250);
-			
+			search();	
 		});
 		
 		
 		
 		
-	}
+	});
 	
-	if(filters.length > 4) {
-		var listItem = $('<li/>')
-				.addClass('filter-item')
-				.attr('id', 'pin-more')
-				.appendTo(list);
-				
-		var text = $('<a/>')
-			.text("+ More")
-			.appendTo(listItem);
-	}
+	
 }
 
 function findFilters() {
