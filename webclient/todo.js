@@ -9,6 +9,8 @@ var filters = []
 
 var suggestions = [];
 
+var classSuggestions = [];
+
 var searchObject;
 
 var leftObject;
@@ -44,6 +46,10 @@ setInterval(function() {
 
 function autoComplete(input, list) {
 	
+	suggestions = [];
+	classSuggestions = [];
+	
+	var ready = false;
 
 	var query = "http://localhost:8984/solr/factor_tool/select?indent=on&wt=json&q=" + encodeURIComponent(input);
 	
@@ -53,18 +59,48 @@ function autoComplete(input, list) {
 		url: query,
 		success: function(data) {    
 		
-			list.empty();
-			suggestions = [];
 			
-			for(var i = 0; i < Math.min(10, data.response.docs.length); i++) {
+			for(var i = 0; i < Math.min(2, data.response.docs.length); i++) {
 				
-				var suggestion = data.response.docs[i];
+				var suggestion = { text: data.response.docs[i].name[0], uri : data.response.docs[i].uri[0], isClass : true };
+				classSuggestions.push(suggestion);
+			}
+			
+			if(ready) {
+				printAutoComplete();
+			} else {
+				ready = true;
+			}
+				
+				
+		},
+		error: function(data) {
+			
+		}		
+	});
+	
+	
+	var lookup = "http://lookup.dbpedia.org/api/search/PrefixSearch?MaxHits=10&QueryString=" + encodeURIComponent(input);
+	
+	$.ajax({
+		dataType: 'json',
+		url: lookup,
+		success: function(data) {    
+		
+			
+			for(var i = 0; i < Math.min(10, data.results.length); i++) {
+				
+				
+				var suggestion = { text: data.results[i].label, uri : data.results[i].uri, isClass : false };
 				suggestions.push(suggestion);				
 				
 			}
 			
-			printAutoComplete();
-				
+			if(ready) {
+				printAutoComplete();
+			} else {
+				ready = true;
+			}	
 				
 		},
 		error: function(data) {
@@ -87,8 +123,11 @@ $("#search-input").keydown(function (e) {
 	if (e.which == 9) {
 	   e.preventDefault(); 
 	   
-	   
-	   suggestions.shift();
+	   if(classSuggestions.length > 0) {
+			classSuggestions.shift();
+	   } else {
+			suggestions.shift();
+	   }
 	   printAutoComplete();
 	}
 });
@@ -114,7 +153,7 @@ $("#pin-form").submit(function( event ) {
 	event.preventDefault();
 	
 	
-	if(suggestions.length > 0) {
+	if(classSuggestions.length > 0 || suggestions.length > 0) {
 		
 		$("#pin-form").toggleClass("active");
 		$("#search-bar").toggleClass("active");
@@ -123,9 +162,11 @@ $("#pin-form").submit(function( event ) {
 		$("#pin-title").toggleClass("hide");
 		$("#pin-marker").toggleClass("active");
 		
-	
+		
 		$("#pin-title").html(suggestions[0].name);
-		var pin = { text: suggestions[0].name, uri: suggestions[0].uri, isClass: true };
+		
+		var suggestion = ((classSuggestions.length > 0) ? classSuggestions[0] : suggestions[0]);
+		var pin = { text: suggestion.name, uri: suggestion.uri, isClass: suggestion.isClass };
 
 		searchObject = pin;	
 		pushPin(pin);
@@ -152,7 +193,7 @@ $("#search-bar").submit(function( event ) {
 	
 	event.preventDefault();
 
-	if(suggestions.length > 0) {
+	if(classSuggestions.length > 0 || suggestions.length > 0) {
 		
 		if(pins.length == 0) {
 			$("#content").animate({ marginTop: 0 }, 300, function() {
@@ -167,14 +208,13 @@ $("#search-bar").submit(function( event ) {
 
 		}
 		
-		var isOntologyClass = suggestions[0].uri[0].includes("http://dbpedia.org/ontology");
-	
 		$("#search-input").val("");
 		
+		var suggestion = ((classSuggestions.length > 0) ? classSuggestions[0] : suggestions[0]);
 		
-		
-		var pin = { text: suggestions[0].name[0], uri: suggestions[0].uri[0], isClass: isOntologyClass };
+		var pin = { text: suggestion.text, uri: suggestion.uri, isClass: suggestion.isClass };
 
+		
 		pushPin(pin);
 		findFilters ();
 	}
@@ -320,11 +360,21 @@ function printAutoComplete() {
 	
 	autocompleteList.empty();
 	
+	$.each(classSuggestions, function( index, value ) {
+		var listItem = $('<li/>')
+			.appendTo(autocompleteList);
+		var text = $('<a/>')
+			.text(value.text)
+			.addClass("font-bold")
+			.appendTo(listItem);
+			
+	});
+	
 	$.each(suggestions, function( index, value ) {
 		var listItem = $('<li/>')
 			.appendTo(autocompleteList);
 		var text = $('<a/>')
-			.text(value.name)
+			.text(value.text)
 			.appendTo(listItem);
 			
 	});

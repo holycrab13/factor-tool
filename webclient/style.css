@@ -207,7 +207,9 @@ body {
 	text-align: left;
 }
 
-
+.font-bold {
+	font-weight: bold;
+}
 
 
 #search-bar.deco {

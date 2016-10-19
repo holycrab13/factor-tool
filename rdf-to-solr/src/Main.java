@@ -27,7 +27,7 @@ public class Main {
     public static void main(String[] args) throws IOException, SolrServerException {
 
         // Path to the dbo.ttl.bz2
-        String file = "C:/Users/Jan/Desktop/dbo.ttl.bz2";
+        String file = "C:/Users/Jan/Desktop/classes.txt";
 
         FileInputStream fis = null;
 
@@ -48,38 +48,38 @@ public class Main {
 
         try {
 
-            scanner = new Scanner(new BZip2CompressorInputStream(fis));
+            scanner = new Scanner(fis);
 
-            currentTriple = scanner.nextLine().split(" ");
+            // currentTriple = scanner.nextLine().split(" ");
 
             while (scanner.hasNext()) {
 
-                collectData(currentTriple[0]);
+                String line = scanner.nextLine();
+                // collectData(currentTriple[0]);
 
 
-                String name = currentTriple[0].substring(currentTriple[0].lastIndexOf('/') + 1);
-                name = name.substring(0, name.length() -1);
+                String name = line.substring(line.lastIndexOf('/') + 1);
                 name = name.replace('_', ' ');
                 name = name.replace("  ", " ");
 
 
-                    SolrInputDocument doc = new SolrInputDocument();
+                SolrInputDocument doc = new SolrInputDocument();
 
-                    doc.addField("name", name);
-                    doc.addField("uri", currentTriple[0]);
-                    doc.addField("weight", 1.0);
+                doc.addField("name", name);
+                doc.addField("uri", line);
+                doc.addField("weight", 1.0);
 
-                    solr.add(doc);
-                    k++;
+                solr.add(doc);
+                k++;
 
 
-                    // Report progress
-                    if (k % 10000 == 0) {
-                        solr.commit();
-                        System.out.println("Processed " + k + " Entities.");
-                    }
+                // Report progress
+                if (k % 100 == 0) {
+                    solr.commit();
+                    System.out.println("Processed " + k + " Classes.");
+                }
 
-                    // Cancel manually for testing, this will take way too long for a full run
+                // Cancel manually for testing, this will take way too long for a full run
             }
 
             solr.commit();
