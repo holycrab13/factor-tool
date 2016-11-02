@@ -41,6 +41,19 @@ body {
 	min-width: 40px;
 }
 
+#toggle-reflexive {
+	float: right;
+    line-height: 40px;
+    padding-right: 15px;
+    color: #C0C0C0;
+    cursor: pointer;
+}
+
+
+
+#toggle-reflexive.on {
+	color: #004563;
+}
 
 
 .hidden {

@@ -25,6 +25,8 @@ var searchInput = $("#search-input");
 
 var autocompleteList = $('#autocomplete');
 
+var searchReflexive = false;
+
 setInterval(function() { 
 	var input = searchInput.val();
 	
@@ -112,6 +114,12 @@ function autoComplete(input, list) {
 	});
 }
 
+$("#toggle-reflexive").click(function () {
+	searchReflexive = !searchReflexive;
+	$("#toggle-reflexive").toggleClass("on");
+	findFilters();
+});
+
 $("#pin-input").keydown(function (e) {
 
 	if (e.which == 9) {
@@ -120,6 +128,8 @@ $("#pin-input").keydown(function (e) {
 	   printAutoComplete();
 	}
 });
+
+
 
 $("#search-input").keydown(function (e) {
 
@@ -386,26 +396,9 @@ function printResults() {
 	
 }
 
-function findFilters() {
-	
-	filters = [];
-	
-	if(searchObject != null && searchObject.isClass) {
-		
-		$.each(pins, function( index, value ) {
-				
-			if(value.isClass) {
-				findTypeFilters(value, searchObject);
-			} else {
-				findInstanceFilters(value, searchObject);
-			}
-			
-		});
-		
-	} else {
-		printFilters();
-	}
-}
+
+
+
 
 function printFilters() {
 	var list = $('#filter-list');
@@ -457,13 +450,35 @@ function printFilters() {
 
 			search();	
 		});
-		
-		
-		
-		
+
 	});
 	
 	
+}
+
+
+function findFilters() {
+	
+	filters = [];
+	
+	if(searchObject != null && searchObject.isClass && !(pins.length == 1 && !searchReflexive)) {
+		
+		
+		$.each(pins, function( index, value ) {
+			
+			if(value != searchObject || searchReflexive) {
+				if(value.isClass) {
+					findTypeFilters(value, searchObject);
+				} else {
+					findInstanceFilters(value, searchObject);
+				}
+			}
+			
+		});
+		
+	} else {
+		printFilters();
+	}
 }
 
 
