@@ -42,6 +42,9 @@ setInterval(function() {
 }, 50);
 
 
+function capitalizeFirstLetter(string) {
+    return string.charAt(0).toUpperCase() + string.slice(1);
+}
 
 
 function autoComplete(input, list) {
@@ -51,7 +54,7 @@ function autoComplete(input, list) {
 	
 	var ready = false;
 
-	var query = "http://localhost:8984/solr/factor_tool/select?indent=on&wt=json&q=" + encodeURIComponent(input);
+	var query = "http://139.18.2.136:8984/solr/factor_tool/select?indent=on&wt=json&q=" + encodeURIComponent(input);
 	
 	$.ajax({
 		dataType: 'jsonp',
@@ -62,7 +65,7 @@ function autoComplete(input, list) {
 			
 			for(var i = 0; i < Math.min(2, data.response.docs.length); i++) {
 				
-				var suggestion = { text: data.response.docs[i].name[0], uri : data.response.docs[i].uri[0], isClass : true };
+				var suggestion = { text: capitalizeFirstLetter(data.response.docs[i].name[0]) + " (Class)", uri : data.response.docs[i].uri[0], isClass : true };
 				classSuggestions.push(suggestion);
 			}
 			
@@ -148,46 +151,7 @@ $("#content").click(function() {
 });
 
 
-$("#pin-form").submit(function( event ) {
-	
-	event.preventDefault();
-	
-	
-	if(classSuggestions.length > 0 || suggestions.length > 0) {
-		
-		$("#pin-form").toggleClass("active");
-		$("#search-bar").toggleClass("active");
-		$("#content").toggleClass("active");
-		$("#pin-section").toggleClass("active");
-		$("#pin-title").toggleClass("hide");
-		$("#pin-marker").toggleClass("active");
-		
-		
-		$("#pin-title").html(suggestions[0].name);
-		
-		var suggestion = ((classSuggestions.length > 0) ? classSuggestions[0] : suggestions[0]);
-		var pin = { text: suggestion.name, uri: suggestion.uri, isClass: suggestion.isClass };
 
-		searchObject = pin;	
-		pushPin(pin);
-		
-		
-		$("#content").one('webkitTransitionEnd otransitionend oTransitionEnd msTransitionEnd transitionend',   
-			function(e) {
-			if(init) {
-				$("#background").toggleClass("active");
-				
-				searchInput = $("#search-input");
-				autocompleteList = $("#autocomplete");
-				
-				$("#search-input").focus();
-				search();
-				init = false;
-			}
-		
-		});  
-	}
-});
 
 $("#search-bar").submit(function( event ) {
 	
@@ -225,7 +189,7 @@ function search() {
 	result = [];
 	
 	if(searchObject == null || !searchObject.isClass) {
-		$('#result-list').empty();
+		printResults();
 		return;
 	}
 	
@@ -290,7 +254,7 @@ function search() {
 			printResults();
 		},
 		error: function(data) {
-			$('#result-list').empty();
+			printResults();
 		}		
 	});
 }
@@ -304,6 +268,12 @@ function pushPin(pin) {
 function printPins() {
 	var list = $('#pin-list')
 	list.empty();
+
+	if(pins.length == 0) {
+		$('#pin-section').addClass('hidden');
+	} else {
+		$('#pin-section').removeClass('hidden');
+	}
 	
 	$.each(pins, function( index, value ) {
 		
@@ -322,9 +292,16 @@ function printPins() {
 			
 			
 		remove.click(function() {
-			
-			 pins.splice(index, 1);
-			 printPins();
+
+			if(searchObject == pins[index]) {
+				searchObject = null;
+			}			
+
+			pins.splice(index, 1);
+			printPins();
+
+			findFilters();
+			search();	
 		});
 	
 		listItem.click(function() {
@@ -385,7 +362,7 @@ function printResults() {
 	var list = $('#result-list');
 	list.empty();
 	
-	if(result.length == 0) {
+	if(result.length == 0 ) {
 		$('#result-section').addClass('hidden');
 	} else {
 		$('#result-section').removeClass('hidden');
@@ -407,6 +384,27 @@ function printResults() {
 		});
 	});
 	
+}
+
+function findFilters() {
+	
+	filters = [];
+	
+	if(searchObject != null && searchObject.isClass) {
+		
+		$.each(pins, function( index, value ) {
+				
+			if(value.isClass) {
+				findTypeFilters(value, searchObject);
+			} else {
+				findInstanceFilters(value, searchObject);
+			}
+			
+		});
+		
+	} else {
+		printFilters();
+	}
 }
 
 function printFilters() {
@@ -468,26 +466,7 @@ function printFilters() {
 	
 }
 
-function findFilters() {
-	
-	filters = [];
-	
-	if(searchObject != null && searchObject.isClass) {
-		
-		$.each(pins, function( index, value ) {
-				
-			if(value.isClass) {
-				findTypeFilters(value, searchObject);
-			} else {
-				findInstanceFilters(value, searchObject);
-			}
-			
-		});
-		
-	} else {
-		printFilters();
-	}
-}
+
 
 function findTypeFilters(targetType, type) {
 	var query = "SELECT distinct ?p ?x WHERE { { ?s ?p ?o BIND('true' AS ?x). ?s a <" + type.uri + ">. ?o a <" + targetType.uri + ">. } " + 
