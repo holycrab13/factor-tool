@@ -67,7 +67,7 @@ function autoComplete(input, list) {
 			
 			for(var i = 0; i < Math.min(2, data.response.docs.length); i++) {
 				
-				var suggestion = { text: capitalizeFirstLetter(data.response.docs[i].name[0]) + " (Class)", uri : data.response.docs[i].uri[0], isClass : true };
+				var suggestion = { text: capitalizeFirstLetter(data.response.docs[i].name[0]), uri : data.response.docs[i].uri[0], isClass : true };
 				classSuggestions.push(suggestion);
 			}
 			
@@ -291,10 +291,17 @@ function printPins() {
 			.addClass('list-item')
 			.attr('id', 'pin-' + index)
 			.appendTo(list);
-		var text = $('<a/>')
+		if(value.isClass) {
+			var text = $('<a/>')
+			.text(value.text + " (Class)")
+			.appendTo(listItem)
+			.addClass('list-item-text');
+		} else {
+			var text = $('<a/>')
 			.text(value.text)
 			.appendTo(listItem)
 			.addClass('list-item-text');
+		}
 		var remove = $('<i/>')
 			.text('clear')
 			.appendTo(listItem)
@@ -351,7 +358,7 @@ function printAutoComplete() {
 		var listItem = $('<li/>')
 			.appendTo(autocompleteList);
 		var text = $('<a/>')
-			.text(value.text)
+			.text(value.text  + " (Class)")
 			.addClass("font-bold")
 			.appendTo(listItem);
 			
@@ -398,7 +405,15 @@ function printResults() {
 
 
 
-
+function sortFilters(prop, asc) {
+    filters = filters.sort(function(a, b) {
+        if (asc) {
+            return (a[prop] > b[prop]) ? 1 : ((a[prop] < b[prop]) ? -1 : 0);
+        } else {
+            return (b[prop] > a[prop]) ? 1 : ((b[prop] < a[prop]) ? -1 : 0);
+        }
+    });
+}
 
 function printFilters() {
 	var list = $('#filter-list');
@@ -410,6 +425,8 @@ function printFilters() {
 		$('#filter-section').removeClass('hidden');
 	}
 	
+	sortFilters("count", false);
+	
 	$.each(filters, function( index, value ) {
 	
 		var listItem = $('<li/>')
@@ -419,10 +436,10 @@ function printFilters() {
 		
 		
 		if(filters[index].passive == 'true') {
-			var text = $('<a/>').text(searchObject.text + " with " + filters[index].text + " being " + filters[index].target.text)
+			var text = $('<a/>').text(searchObject.text + " with " + filters[index].text + " being " + filters[index].target.text + " (" + filters[index].count + " results)")
 			.addClass('list-item-text').appendTo(listItem);
 		} else {
-			var text = $('<a/>').text(searchObject.text + " being " + filters[index].text + " of " + filters[index].target.text)
+			var text = $('<a/>').text(searchObject.text + " being " + filters[index].text + " of " + filters[index].target.text + " (" + filters[index].count + " results)")
 			.addClass('list-item-text').appendTo(listItem);
 		}
 		
@@ -484,7 +501,7 @@ function findFilters() {
 
 
 function findTypeFilters(targetType, type) {
-	var query = "SELECT distinct ?p ?x WHERE { { ?s ?p ?o BIND('true' AS ?x). ?s a <" + type.uri + ">. ?o a <" + targetType.uri + ">. } " + 
+	var query = "SELECT distinct ?p ?x (count(?p) as ?c) WHERE { { ?s ?p ?o BIND('true' AS ?x). ?s a <" + type.uri + ">. ?o a <" + targetType.uri + ">. } " + 
 		"UNION { ?o ?p ?s BIND('false' AS ?x). ?s a <" + type.uri + ">. ?o a <" + targetType.uri + ">. } FILTER regex(?p, 'dbpedia.org/ontology')  }";
 		
 		
@@ -494,7 +511,7 @@ function findTypeFilters(targetType, type) {
 }
 
 function findInstanceFilters(instance, type) {	
-	var query = "SELECT distinct ?p ?x WHERE { { ?s ?p <" + instance.uri + "> BIND('true' AS ?x). ?s a <" + type.uri 
+	var query = "SELECT distinct ?p ?x (count(?p) as ?c) WHERE { { ?s ?p <" + instance.uri + "> BIND('true' AS ?x). ?s a <" + type.uri 
 		+ ">. } UNION { <" + instance.uri + "> ?p ?s BIND('false' AS ?x). ?s a <" 
 		+ type.uri + ">. } FILTER regex(?p, 'dbpedia.org/ontology')  }";
 		
@@ -514,10 +531,11 @@ function queryFilters(queryUrl, targetObject) {
 				//Get the result uri
 				var resultUri = data.results.bindings[i]["p"]["value"];
 				var resultPassive = data.results.bindings[i]["x"]["value"];
+				var resultCount = parseInt(data.results.bindings[i]["c"]["value"]);
 				//Get the property name from the uri
 				var resultText = resultUri.split('\\').pop().split('/').pop().replace(/([a-z](?=[A-Z]))/g, '$1 ').replace(/([A-Z])/g, function(str){ return str.toLowerCase(); });
 				
-				filters.push({ text: resultText, uri : resultUri, active: false, passive: resultPassive, target: targetObject, inverse: false});
+				filters.push({ text: resultText, uri : resultUri, count : resultCount, active: false, passive: resultPassive, target: targetObject, inverse: false});
 			}
 			
 			
