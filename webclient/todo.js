@@ -7,9 +7,11 @@ var result = [];
 
 var filters = []
 
-var suggestions = [];
+var suggestions_all = [];
 
-var classSuggestions = [];
+var suggestions_lookup = [];
+
+var suggestions_solr = [];
 
 var searchObject;
 
@@ -27,6 +29,9 @@ var autocompleteList = $('#autocomplete');
 
 var searchReflexive = false;
 
+// TODO: MERGE CLASS/INSTANCE MATCHES
+
+
 setInterval(function() { 
 	var input = searchInput.val();
 	
@@ -38,7 +43,7 @@ setInterval(function() {
 			$("#search-input").animate({ width: w }, 50);
 		}
 		
-		autoComplete(searchTerm, autocompleteList);		
+		autoComplete();		
 	}
 	
 }, 50);
@@ -48,65 +53,114 @@ function capitalizeFirstLetter(string) {
     return string.charAt(0).toUpperCase() + string.slice(1);
 }
 
+function toTitleCase(str) {
+    return str.replace(/(?:^|\s)\w/g, function(match) {
+        return match.toUpperCase();
+    });
+}
 
-function autoComplete(input, list) {
-	
-	suggestions = [];
-	classSuggestions = [];
-	
-	var ready = false;
+function formatName(str) {
+    return toTitleCase(str).replace(/(\s)/g, "").replace( /([A-Z])/g, " $1" ).slice(1);
+}
 
-	var query = "http://139.18.2.136:8984/solr/factor_tool/select?indent=on&wt=json&q=" + encodeURIComponent(input);
+
+// Runs the auto-complete for the text input
+function autoComplete() {
 	
-	$.ajax({
+	// Clear all suggestions
+	suggestions_lookup = [];
+	suggestions_solr = [];
+	suggestions_all = [];
+	
+	$.when(getSolrSuggestions(), getLookupSuggestions()).done(function(solr, lookup) {
+		
+		$.each(suggestions_solr, function( index, solr_class ) {
+		
+			var instUri = null;
+			
+			$.each(suggestions_lookup, function( index, lookup_instance ) {
+				if(solr_class.name == lookup_instance.name) {
+					instUri = lookup_instance.uri;
+					lookup_instance.add = false;
+				}
+			});
+			
+			var suggestion = { name: solr_class.name, uri : solr_class.uri, isClass : true, instanceUri : instUri };
+			suggestions_all.push(suggestion);
+		});
+		
+		$.each(suggestions_lookup, function( index, lookup_instance ) {
+			if(lookup_instance.add) {
+				var suggestion = { name: lookup_instance.name, uri : lookup_instance.uri, isClass : false, instanceUri : null };
+				suggestions_all.push(suggestion);
+			}
+		});	
+		
+		printAutoComplete();
+	});
+}
+
+// Renders the auto complete
+function printAutoComplete() {
+	
+	autocompleteList.empty();
+	
+	$.each(suggestions_all, function( index, value ) {
+		
+		if(value.isClass) {
+			var listItem = $('<li/>')
+			.appendTo(autocompleteList);
+			var text = $('<a/>')
+			.text(value.name)
+			.addClass("font-bold")
+			.appendTo(listItem);
+		} else {
+			var listItem = $('<li/>')
+			.appendTo(autocompleteList);
+			var text = $('<a/>')
+			.text(value.name)
+			.appendTo(listItem);
+		}
+	});
+}
+
+// Get the auto-complete suggestions from the class solr index
+function getSolrSuggestions() {
+	// Build the query...
+	var query = "http://localhost:8984/solr/factor_tool/suggest?wt=json&q=" + encodeURIComponent(searchTerm);
+	
+	// Send and return the query result
+	return $.ajax({
 		dataType: 'jsonp',
 		jsonp: 'json.wrf',
 		url: query,
 		success: function(data) {    
-		
+			// Read the result and add it to suggestions_solr
+			var resultData = data.suggest.mySuggester[searchTerm].suggestions;
 			
-			for(var i = 0; i < Math.min(2, data.response.docs.length); i++) {
-				
-				var suggestion = { text: capitalizeFirstLetter(data.response.docs[i].name[0]), uri : data.response.docs[i].uri[0], isClass : true };
-				classSuggestions.push(suggestion);
-			}
-			
-			if(ready) {
-				printAutoComplete();
-			} else {
-				ready = true;
-			}
-				
-				
+			for(var i = 0; i < Math.min(5, resultData.length); i++) {
+				suggestions_solr.push({ name: formatName(resultData[i].term), uri : resultData[i].payload, add : true });
+			}				
 		},
 		error: function(data) {
 			
 		}		
 	});
+}
+
+function getLookupSuggestions() {
+	// Build the query...
+	var query = "http://lookup.dbpedia.org/api/search/PrefixSearch?MaxHits=10&QueryString=" + encodeURIComponent(searchTerm);
 	
-	
-	var lookup = "http://lookup.dbpedia.org/api/search/PrefixSearch?MaxHits=10&QueryString=" + encodeURIComponent(input);
-	
-	$.ajax({
+	return $.ajax({
 		dataType: 'json',
-		url: lookup,
+		url: query,
 		success: function(data) {    
-		
-			
+			// Read the result and add it to suggestions_lookup
 			for(var i = 0; i < Math.min(10, data.results.length); i++) {
+				suggestions_lookup.push({ name: formatName(data.results[i].label), uri : data.results[i].uri, add : true });				
 				
-				
-				var suggestion = { text: data.results[i].label, uri : data.results[i].uri, isClass : false };
-				suggestions.push(suggestion);				
-				
-			}
-			
-			if(ready) {
-				printAutoComplete();
-			} else {
-				ready = true;
 			}	
-				
 		},
 		error: function(data) {
 			
@@ -120,27 +174,16 @@ $("#toggle-reflexive").click(function () {
 	findFilters();
 });
 
-$("#pin-input").keydown(function (e) {
-
-	if (e.which == 9) {
-	   e.preventDefault(); 
-	   suggestions.shift();
-	   printAutoComplete();
-	}
-});
-
-
 
 $("#search-input").keydown(function (e) {
 
 	if (e.which == 9) {
 	   e.preventDefault(); 
 	   
-	   if(classSuggestions.length > 0) {
-			classSuggestions.shift();
-	   } else {
-			suggestions.shift();
+	   if(suggestions_all.length > 0) {
+			suggestions_all.shift();
 	   }
+	   
 	   printAutoComplete();
 	}
 });
@@ -157,7 +200,7 @@ $("#content").click(function() {
 			});
 			
 		});	
-	}
+	}	
 });
 
 
@@ -167,7 +210,7 @@ $("#search-bar").submit(function( event ) {
 	
 	event.preventDefault();
 
-	if(classSuggestions.length > 0 || suggestions.length > 0) {
+	if(suggestions_all.length > 0) {
 		
 		if(pins.length == 0) {
 			$("#content").animate({ marginTop: 0 }, 300, function() {
@@ -184,9 +227,9 @@ $("#search-bar").submit(function( event ) {
 		
 		$("#search-input").val("");
 		
-		var suggestion = ((classSuggestions.length > 0) ? classSuggestions[0] : suggestions[0]);
+		var suggestion = suggestions_all[0];
 		
-		var pin = { text: suggestion.text, uri: suggestion.uri, isClass: suggestion.isClass };
+		var pin = { text: suggestion.name, uri: suggestion.uri, isClass: suggestion.isClass, instanceUri : suggestion.instanceUri };
 
 		
 		pushPin(pin);
@@ -350,30 +393,6 @@ function togglePin(id) {
 
 
 
-function printAutoComplete() {
-	
-	autocompleteList.empty();
-	
-	$.each(classSuggestions, function( index, value ) {
-		var listItem = $('<li/>')
-			.appendTo(autocompleteList);
-		var text = $('<a/>')
-			.text(value.text  + " (Class)")
-			.addClass("font-bold")
-			.appendTo(listItem);
-			
-	});
-	
-	$.each(suggestions, function( index, value ) {
-		var listItem = $('<li/>')
-			.appendTo(autocompleteList);
-		var text = $('<a/>')
-			.text(value.text)
-			.appendTo(listItem);
-			
-	});
-	
-}
 
 function printResults() {
 	var list = $('#result-list');
@@ -486,6 +505,10 @@ function findFilters() {
 			if(value != searchObject || searchReflexive) {
 				if(value.isClass) {
 					findTypeFilters(value, searchObject);
+					
+					if(value.instanceUri != null) {
+						findInstanceRepresentationFilters(value, searchObject);
+					}
 				} else {
 					findInstanceFilters(value, searchObject);
 				}
@@ -501,9 +524,10 @@ function findFilters() {
 
 
 function findTypeFilters(targetType, type) {
+	
+	// FILTER HERE
 	var query = "SELECT distinct ?p ?x (count(?p) as ?c) WHERE { { ?s ?p ?o BIND('true' AS ?x). ?s a <" + type.uri + ">. ?o a <" + targetType.uri + ">. } " + 
 		"UNION { ?o ?p ?s BIND('false' AS ?x). ?s a <" + type.uri + ">. ?o a <" + targetType.uri + ">. } FILTER regex(?p, 'dbpedia.org/ontology')  }";
-		
 		
 	var queryUrl = "http://dbpedia.org/sparql?default-graph-uri=http%3A%2F%2Fdbpedia.org&query="+ encodeURIComponent(query) +"&format=json";
 
@@ -520,6 +544,18 @@ function findInstanceFilters(instance, type) {
 
 	queryFilters(queryUrl, instance);
 }
+
+function findInstanceRepresentationFilters(targetType, type) {	
+	var query = "SELECT distinct ?p ?x (count(?p) as ?c) WHERE { { ?s ?p <" + targetType.instanceUri + "> BIND('true' AS ?x). ?s a <" + type.uri 
+		+ ">. } UNION { <" + targetType.InstanceUri + "> ?p ?s BIND('false' AS ?x). ?s a <" 
+		+ type.uri + ">. } FILTER regex(?p, 'dbpedia.org/ontology')  }";
+		
+		
+	var queryUrl = "http://dbpedia.org/sparql?default-graph-uri=http%3A%2F%2Fdbpedia.org&query="+ encodeURIComponent(query) +"&format=json";
+
+	queryFilters(queryUrl, targetType);
+}
+
 
 function queryFilters(queryUrl, targetObject) {
 	$.ajax({
