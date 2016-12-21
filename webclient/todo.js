@@ -29,9 +29,29 @@ var autocompleteList = $('#autocomplete');
 
 var searchReflexive = false;
 
-// TODO: MERGE CLASS/INSTANCE MATCHES
+// *** HELPER FUNCTIONS ***
+
+// Capitalizes the first letter of a string
+function capitalizeFirstLetter(string) {
+    return string.charAt(0).toUpperCase() + string.slice(1);
+}
+
+// Transforms the passed string to title case
+function toTitleCase(str) {
+    return str.replace(/(?:^|\s)\w/g, function(match) {
+        return match.toUpperCase();
+    });
+}
+
+// Formats the given string to a unified format
+function formatName(str) {
+    return toTitleCase(str).replace(/(\s)/g, "").replace( /([A-Z])/g, " $1" ).slice(1);
+}
 
 
+// *** AUTO COMPLETE ***
+
+// Looks for changes in the search term
 setInterval(function() { 
 	var input = searchInput.val();
 	
@@ -47,22 +67,6 @@ setInterval(function() {
 	}
 	
 }, 50);
-
-
-function capitalizeFirstLetter(string) {
-    return string.charAt(0).toUpperCase() + string.slice(1);
-}
-
-function toTitleCase(str) {
-    return str.replace(/(?:^|\s)\w/g, function(match) {
-        return match.toUpperCase();
-    });
-}
-
-function formatName(str) {
-    return toTitleCase(str).replace(/(\s)/g, "").replace( /([A-Z])/g, " $1" ).slice(1);
-}
-
 
 // Runs the auto-complete for the text input
 function autoComplete() {
@@ -148,6 +152,7 @@ function getSolrSuggestions() {
 	});
 }
 
+// Get the auto-complete suggestions from dbpedia lookup
 function getLookupSuggestions() {
 	// Build the query...
 	var query = "http://lookup.dbpedia.org/api/search/PrefixSearch?MaxHits=10&QueryString=" + encodeURIComponent(searchTerm);
@@ -168,12 +173,13 @@ function getLookupSuggestions() {
 	});
 }
 
+// *** UI INPUTS ***
+
 $("#toggle-reflexive").click(function () {
 	searchReflexive = !searchReflexive;
 	$("#toggle-reflexive").toggleClass("on");
 	findFilters();
 });
-
 
 $("#search-input").keydown(function (e) {
 
@@ -188,7 +194,6 @@ $("#search-input").keydown(function (e) {
 	}
 });
 
-
 $("#content").click(function() {
 	if($("#search-input").hasClass("hidden")) {
 		$("#search-input").toggleClass("hidden");
@@ -202,9 +207,6 @@ $("#content").click(function() {
 		});	
 	}	
 });
-
-
-
 
 $("#search-bar").submit(function( event ) {
 	
@@ -230,12 +232,164 @@ $("#search-bar").submit(function( event ) {
 		var suggestion = suggestions_all[0];
 		
 		var pin = { text: suggestion.name, uri: suggestion.uri, isClass: suggestion.isClass, instanceUri : suggestion.instanceUri };
-
 		
 		pushPin(pin);
 		findFilters ();
 	}
 });
+
+function findFilters() {
+	
+	filters = [];
+	
+	if(searchObject != null && searchObject.isClass && !(pins.length == 1 && !searchReflexive)) {
+		
+		$.each(pins, function( index, value ) {
+			
+			if(value != searchObject || searchReflexive) {
+				
+				var bidirectional = (value != searchObject);
+				
+				if(value.isClass) {
+					findClassFilters(value.text, value.uri, bidirectional)
+					
+					if(value.instanceUri != null) {
+						findInstanceFilters(value.text, value.instanceUri, bidirectional);
+					}
+				} else {
+					findInstanceFilters(value.text, value.uri, bidirectional);
+				}
+			}
+		});
+		
+	} else {
+		printFilters();
+	}
+}
+
+// Finds filters for class nodes with a uri and a bool indicating whether the search should be bidirectional
+function findClassFilters(queryClassName, queryClassUri, bidirectional) {
+	
+	var query = "SELECT distinct ?p ?x (count(?p) as ?c) WHERE {";
+	
+	query += "{ ?s ?p ?o BIND('true' AS ?x). ?s a <" + searchObject.uri + ">. ?o a <" + queryClassUri + ">. }";
+	
+	if(bidirectional) {
+		query += "UNION { ?o ?p ?s BIND('false' AS ?x). ?s a <" + searchObject.uri + ">. ?o a <" + queryClassUri + ">. }"
+	}
+	
+	query += "FILTER regex(?p, 'dbpedia.org/ontology') }";
+	
+	var target = { text: queryClassName, uri: queryClassUri, isClass: true };
+	var queryUrl = "http://dbpedia.org/sparql?default-graph-uri=http%3A%2F%2Fdbpedia.org&query="+ encodeURIComponent(query) +"&format=json";
+	queryFilters(queryUrl, target);
+}
+
+// Finds filters for instance nodes with a uri and a bool indicating whether the search should be bidirectional
+function findInstanceFilters(queryInstanceName, queryInstanceUri, bidirectional) {
+	var query = "SELECT distinct ?p ?x (count(?p) as ?c) WHERE {";
+	
+	query += "{ ?s ?p <" + queryInstanceUri + "> BIND('true' AS ?x). ?s a <" + searchObject.uri + ">. }";
+	
+	if(bidirectional) {
+		query += "UNION { <" + queryInstanceUri + "> ?p ?s BIND('false' AS ?x). ?s a <" + searchObject.uri + ">. }"
+	}
+	
+	query += "FILTER regex(?p, 'dbpedia.org/ontology') }";
+	
+	var target = { text: queryInstanceName, uri: queryInstanceUri, isClass: false };
+	var queryUrl = "http://dbpedia.org/sparql?default-graph-uri=http%3A%2F%2Fdbpedia.org&query="+ encodeURIComponent(query) +"&format=json";
+	queryFilters(queryUrl, target);
+}
+
+function queryFilters(queryUrl, targetObject) {
+	$.ajax({
+		dataType: 'json',
+		url: queryUrl,
+		success: function(data) {    
+			//Iterate over result set
+			for(i in data.results.bindings) {
+				//Get the result uri
+				var resultUri = data.results.bindings[i]["p"]["value"];
+				var resultPassive = data.results.bindings[i]["x"]["value"];
+				var resultCount = parseInt(data.results.bindings[i]["c"]["value"]);
+				//Get the property name from the uri
+				var resultText = resultUri.split('\\').pop().split('/').pop().replace(/([a-z](?=[A-Z]))/g, '$1 ').replace(/([A-Z])/g, function(str){ return str.toLowerCase(); });
+				
+				filters.push({ text: resultText, uri : resultUri, count : resultCount, active: false, passive: resultPassive, target: targetObject, inverse: false});
+			}
+			
+			
+			printFilters();
+		},
+		error: function(data) {
+			printFilters();
+		}
+	});
+}
+
+function printFilters() {
+	var list = $('#filter-list');
+	list.empty();
+	
+	if(filters.length == 0) {
+		$('#filter-section').addClass('hidden');
+	} else {
+		$('#filter-section').removeClass('hidden');
+	}
+	
+	sortFilters("count", false);
+	
+	$.each(filters, function( index, value ) {
+	
+		var listItem = $('<li/>')
+			.addClass('list-item')
+			.attr('id', 'filter-' + index)
+			.appendTo(list);		
+		
+		if(filters[index].passive == 'true') {
+			var text = $('<a/>').text(searchObject.text + " with " + filters[index].text + " being " + filters[index].target.text + " (" + filters[index].count + " results)")
+			.addClass('list-item-text').appendTo(listItem);
+		} else {
+			var text = $('<a/>').text(searchObject.text + " being " + filters[index].text + " of " + filters[index].target.text + " (" + filters[index].count + " results)")
+			.addClass('list-item-text').appendTo(listItem);
+		}
+		
+		var negate = $('<i/>')
+			.text('add')
+			.appendTo(listItem)
+			.addClass('remove-button material-icons');
+		
+		listItem.click(function() {
+			if(!filters[index].active) {
+				filters[index].active = true;
+				filters[index].inverse = false;
+				negate.html('add');
+				$(this).toggleClass('active');	
+			} else if(!filters[index].inverse) {
+				filters[index].inverse = true;
+				negate.html('remove');
+			} else {
+				$(this).toggleClass('active');	
+				filters[index].active = false;
+			}
+			
+			search();	
+		});
+	});	
+}
+
+function sortFilters(prop, asc) {
+    filters = filters.sort(function(a, b) {
+        if (asc) {
+            return (a[prop] > b[prop]) ? 1 : ((a[prop] < b[prop]) ? -1 : 0);
+        } else {
+            return (b[prop] > a[prop]) ? 1 : ((b[prop] < a[prop]) ? -1 : 0);
+        }
+    });
+}
+
+// *** SEARCH ***
 
 function search() {
 	
@@ -311,6 +465,36 @@ function search() {
 		}		
 	});
 }
+
+
+function printResults() {
+	var list = $('#result-list');
+	list.empty();
+	
+	if(result.length == 0 ) {
+		$('#result-section').addClass('hidden');
+	} else {
+		$('#result-section').removeClass('hidden');
+	}
+		
+	$.each(result, function( index, value ) {
+		var listItem = $('<li/>')
+			.addClass('list-item')
+			.attr('id', 'result-' + value.text)
+			.appendTo(list);
+		var text = $('<a/>')
+			.text(value.text)
+			.appendTo(listItem)
+			.addClass('list-item-text');
+			
+		listItem.click(function() {
+			pushPin(value);
+			findFilters();
+		});
+	});
+}
+
+// *** PINS ***
 
 function pushPin(pin) {
 	pins.push(pin);
@@ -394,192 +578,8 @@ function togglePin(id) {
 
 
 
-function printResults() {
-	var list = $('#result-list');
-	list.empty();
-	
-	if(result.length == 0 ) {
-		$('#result-section').addClass('hidden');
-	} else {
-		$('#result-section').removeClass('hidden');
-	}
-		
-	$.each(result, function( index, value ) {
-		var listItem = $('<li/>')
-			.addClass('list-item')
-			.attr('id', 'result-' + value.text)
-			.appendTo(list);
-		var text = $('<a/>')
-			.text(value.text)
-			.appendTo(listItem)
-			.addClass('list-item-text');
-			
-		listItem.click(function() {
-			pushPin(value);
-			findFilters();
-		});
-	});
-	
-}
 
 
 
-function sortFilters(prop, asc) {
-    filters = filters.sort(function(a, b) {
-        if (asc) {
-            return (a[prop] > b[prop]) ? 1 : ((a[prop] < b[prop]) ? -1 : 0);
-        } else {
-            return (b[prop] > a[prop]) ? 1 : ((b[prop] < a[prop]) ? -1 : 0);
-        }
-    });
-}
 
-function printFilters() {
-	var list = $('#filter-list');
-	list.empty();
-	
-	if(filters.length == 0) {
-		$('#filter-section').addClass('hidden');
-	} else {
-		$('#filter-section').removeClass('hidden');
-	}
-	
-	sortFilters("count", false);
-	
-	$.each(filters, function( index, value ) {
-	
-		var listItem = $('<li/>')
-			.addClass('list-item')
-			.attr('id', 'filter-' + index)
-			.appendTo(list);
-		
-		
-		if(filters[index].passive == 'true') {
-			var text = $('<a/>').text(searchObject.text + " with " + filters[index].text + " being " + filters[index].target.text + " (" + filters[index].count + " results)")
-			.addClass('list-item-text').appendTo(listItem);
-		} else {
-			var text = $('<a/>').text(searchObject.text + " being " + filters[index].text + " of " + filters[index].target.text + " (" + filters[index].count + " results)")
-			.addClass('list-item-text').appendTo(listItem);
-		}
-		
-		var negate = $('<i/>')
-			.text('add')
-			.appendTo(listItem)
-			.addClass('remove-button material-icons');
-			
-		
-		
-		listItem.click(function() {
-			if(!filters[index].active) {
-				filters[index].active = true;
-				filters[index].inverse = false;
-				negate.html('add');
-				$(this).toggleClass('active');	
-			} else if(!filters[index].inverse) {
-				filters[index].inverse = true;
-				negate.html('remove');
-			} else {
-				$(this).toggleClass('active');	
-				filters[index].active = false;
-			}
-			
-
-			search();	
-		});
-
-	});
-	
-	
-}
-
-
-function findFilters() {
-	
-	filters = [];
-	
-	if(searchObject != null && searchObject.isClass && !(pins.length == 1 && !searchReflexive)) {
-		
-		
-		$.each(pins, function( index, value ) {
-			
-			if(value != searchObject || searchReflexive) {
-				if(value.isClass) {
-					findTypeFilters(value, searchObject);
-					
-					if(value.instanceUri != null) {
-						findInstanceRepresentationFilters(value, searchObject);
-					}
-				} else {
-					findInstanceFilters(value, searchObject);
-				}
-			}
-			
-		});
-		
-	} else {
-		printFilters();
-	}
-}
-
-
-
-function findTypeFilters(targetType, type) {
-	
-	// FILTER HERE
-	var query = "SELECT distinct ?p ?x (count(?p) as ?c) WHERE { { ?s ?p ?o BIND('true' AS ?x). ?s a <" + type.uri + ">. ?o a <" + targetType.uri + ">. } " + 
-		"UNION { ?o ?p ?s BIND('false' AS ?x). ?s a <" + type.uri + ">. ?o a <" + targetType.uri + ">. } FILTER regex(?p, 'dbpedia.org/ontology')  }";
-		
-	var queryUrl = "http://dbpedia.org/sparql?default-graph-uri=http%3A%2F%2Fdbpedia.org&query="+ encodeURIComponent(query) +"&format=json";
-
-	queryFilters(queryUrl, targetType);
-}
-
-function findInstanceFilters(instance, type) {	
-	var query = "SELECT distinct ?p ?x (count(?p) as ?c) WHERE { { ?s ?p <" + instance.uri + "> BIND('true' AS ?x). ?s a <" + type.uri 
-		+ ">. } UNION { <" + instance.uri + "> ?p ?s BIND('false' AS ?x). ?s a <" 
-		+ type.uri + ">. } FILTER regex(?p, 'dbpedia.org/ontology')  }";
-		
-		
-	var queryUrl = "http://dbpedia.org/sparql?default-graph-uri=http%3A%2F%2Fdbpedia.org&query="+ encodeURIComponent(query) +"&format=json";
-
-	queryFilters(queryUrl, instance);
-}
-
-function findInstanceRepresentationFilters(targetType, type) {	
-	var query = "SELECT distinct ?p ?x (count(?p) as ?c) WHERE { { ?s ?p <" + targetType.instanceUri + "> BIND('true' AS ?x). ?s a <" + type.uri 
-		+ ">. } UNION { <" + targetType.InstanceUri + "> ?p ?s BIND('false' AS ?x). ?s a <" 
-		+ type.uri + ">. } FILTER regex(?p, 'dbpedia.org/ontology')  }";
-		
-		
-	var queryUrl = "http://dbpedia.org/sparql?default-graph-uri=http%3A%2F%2Fdbpedia.org&query="+ encodeURIComponent(query) +"&format=json";
-
-	queryFilters(queryUrl, targetType);
-}
-
-
-function queryFilters(queryUrl, targetObject) {
-	$.ajax({
-		dataType: 'json',
-		url: queryUrl,
-		success: function(data) {    
-			//Iterate over result set
-			for(i in data.results.bindings) {
-				//Get the result uri
-				var resultUri = data.results.bindings[i]["p"]["value"];
-				var resultPassive = data.results.bindings[i]["x"]["value"];
-				var resultCount = parseInt(data.results.bindings[i]["c"]["value"]);
-				//Get the property name from the uri
-				var resultText = resultUri.split('\\').pop().split('/').pop().replace(/([a-z](?=[A-Z]))/g, '$1 ').replace(/([A-Z])/g, function(str){ return str.toLowerCase(); });
-				
-				filters.push({ text: resultText, uri : resultUri, count : resultCount, active: false, passive: resultPassive, target: targetObject, inverse: false});
-			}
-			
-			
-			printFilters();
-		},
-		error: function(data) {
-			printFilters();
-		}
-	});
-}
 
