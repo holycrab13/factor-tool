@@ -1,0 +1,13 @@
+
+bind criteria while searching?
+
+SELECT ?s0 ?c0 ?c1 ?c2 ?c3 ?c4...
+
+{SELECT ?s1 ?p (resourceA) BIND(?c1a -> ?p) BIND(?c1b -> (resourceA))
+{SELECT ?s2 ?p (resourceB) BIND(?c2a -> ?p) BIND(?c2b -> (resourceA))
+	{SELECT ?s3 a (class) BIND(?c3a -> "is a"}... 
+}}
+
+pros: probably faster (no tracing)
+cons: criteria only in text form (can be eliminated with 2 binds)
+
