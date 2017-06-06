@@ -8,7 +8,6 @@
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="commons-compress-1.12" level="project" />
-    <orderEntry type="library" name="solr-solrj-6.2.0" level="project" />
     <orderEntry type="library" name="httpclient-4.4.1" level="project" />
     <orderEntry type="library" name="slf4j-api-1.7.7" level="project" />
     <orderEntry type="library" name="commons-io-2.5" level="project" />
@@ -17,5 +16,6 @@
     <orderEntry type="library" name="httpcore-4.4.1" level="project" />
     <orderEntry type="library" name="httpmime-4.4.1" level="project" />
     <orderEntry type="library" name="noggit-0.6" level="project" />
+    <orderEntry type="library" name="solr-solrj-6.2.1" level="project" />
   </component>
 </module>

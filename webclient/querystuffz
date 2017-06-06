@@ -1,0 +1,288 @@
+
+
+
+result set:
+
+expands + thing + filters
+
+
+
+how to handle expands?
+
+
+add filter F1(r) -> create empty set with filter F1(all)
+
+SEARCH FOR FRANCE, GET ALL THINGS RELATED TO FRANCE
+
+
+add Filter F2(r) -> add F2 to active set with F2(all)
+
+SEARCH FOR ACTOR, GET ALL THINGS RELATED TO BOTH FRANCE AND ACTOR
+
+display: 
+
+Gerard Depardieu (birth place France, death place France, occupation Actor) -> expand for related set
+Some other guy (death place France, profession Actor) -> expand for related set
+
+USE CASE:
+
+Find
+
+select dinstict s
+where
+(foreach filter)
+	s filter.p filter.o
+
+o1 = France
+o2 = Actor
+
+p1 = x
+p2 = occupation
+
+select ?s ?x where s p2 o2. s x 01.
+
+
+select ?s ?p1 ?o1 ?p2 ?o2 .... 
+
+
+
+
+filters A:all, B:p1
+
+
+SELECT distinct s p o 
+where 
+s p o.
+s px A.
+s py B.
+s <birthPlace> B.
+
+Filter(?o = A || ?o = B)
+Filter(?py = <birthPlace>)
+
+GROUP BY s
+
+
+
+
+
+R1 p2 A 
+R1 p3 A 
+R1 p1 B
+
+R2 p2 A 
+R2 p1 B
+
+R3 p1 A
+R3 p2 A
+
+R4 p3 A
+R4 p1 B
+
+
+-> get all 
+
+
+SELECT distinct ?s ?p ?o 
+where {
+?s ?p ?o.
+?s ?px dbr:Actor.
+?s ?py dbr:France.
+
+FILTER(?o = dbr:Actor || ?o = dbr:France)
+}
+ORDER BY ?s LIMIT 300
+
+SELECT ?s ?p ?o where 
+{
+	values ?o { dbr:Berlin dbr:Germany}.
+    ?s ?p ?o.
+	{
+		SELECT ?s count(?s) as ?count where 
+		{
+			?s ?p1 dbr:Berlin.
+			?s ?p2 dbr:Germany.
+		} 
+		ORDER BY DESC(?count) LIMIT 200
+		
+	} 
+}
+ORDER BY DESC(?count) ?s
+
+
+BI-DIRECTIONAL???
+
+select ?s count(?s) as ?count where
+{
+	{ ?s ?p1 dbr:Germany. } UNION { dbr:Germany ?p1 ?s. }
+	dbr:Berlin ?p2 ?s.
+} 
+ORDER BY DESC(?count) LIMIT 200
+
+
+SELECT ?s count(?s) as ?count where 
+{
+	{ ?s ?p1 dbr:Berlin. } UNION { dbr:Berlin ?p1 ?s. }
+	?s ?p2 dbr:Germany.
+} 
+ORDER BY DESC(?count) LIMIT 200
+
+
+
+
+SELECT ?s ?p ?o ?dir WHERE
+{
+	values ?o { dbr:Berlin dbr:Germany}.
+	{
+
+	} 
+}
+
+DBPEDIA fusion
+
+
+Handling of Properties???
+
+
+Things related to Actor
+
+
+
+
+-> Expand search bakes query to Q_bake
+
+-> Filters can be added
+
+"SELECT ?s0 count(?s0) as ?c WHERE { ?s0 occupation Musician. ?s0 sdfdsaf asdfdasdf. ?s0 <http://dbpedia.org/property/spouse> ?s1. ?s1 <http://dbpedia.org/ontology/occupation> <http://dbpedia.org/resource/Actor>.{ ?s1 ?p1 <http://dbpedia.org/resource/France>. } UNION { <http://dbpedia.org/resource/France> ?p1 ?s1 } FILTER regex(?s0, 'http://dbpedia.org/resource') } ORDER BY DESC(?c) LIMIT 500"
+
+?s0 ?p0 Actor UNION Actor ?p0 ?s0
+
+
+
+SELECT ?s0 WHERE { ?s0 child ?s1. ?s1 birthPlace Germany. ?s1 spouse ?s2. ?s2 occupation Acor }
+
+
+First Step: Retrieve result list
+
+select ?s0 WHERE { [filters(?s0)]. [previousSearchData]. }
+
+bakeQuery:
+
+?s0 [expand] ?s1. [filters(?s1)];
+
+
+Second Step: Retrieve result info
+
+-> add top filter
+
+-> foreach expand: retrieve subject(s) of expand with filters
+
+
+
+filter(uri : string, name : string, properties : property[], currentProperty : property)
+expand(uri : string, name : string)
+set(base : set, filters : filter[], expands : expand[])
+property(uri : string, name : string)
+
+SELECT S0 WHERE { GenerateQuery(set, 0) }
+
+
+string GenerateQuery(set : set, n : int)
+{
+	if(set.base == null)
+	{
+	 	return printFilters(n, set.filters);
+	}
+	else
+	{
+		string result;
+
+		result += printFilters(n, set.filters);
+		result += printExpands(n, set.expands);
+
+		return result + GenerateQuery(set.base, n + 1);
+	}
+}
+
+string printFilters(n : int, filters : filter[])
+{
+	string result;
+
+	foreach(filter in filters)
+	{
+		result += string.Format("S{0} {1} {2}.", n, filter.currentProperty.uri, filter.uri)
+	}
+
+	return result;
+}
+
+string printExpands(n : int, expands : expand[])
+{
+	string result;
+
+	foreach(expand in expands) 
+	{
+		result += string.Format("{ S{0} {1} S{2} } UNION", n, expand.property, n + 1)
+	}
+
+	return result;
+}
+
+
+
+FILTER 
+
+- Relational Filters
+- Class Filters
+- Constant Filters
+
+Common interface:
++Name()
++GetQuery(x)
+
+class Instance
+{
+	string uri
+}
+
+interface IFilter
+{
+	string GenerateFilterQuery()
+}
+
+Relational Filter
+{
+	-object
+	-property
+
+	GetQuery(x)
+	{
+		return x (property) (object)
+
+		// OR
+
+		return x ?p object UNION object ?p x 
+	}
+}
+
+Class Filter
+{
+	-class
+
+	GetQuery(x)
+	{
+		return x is_a class
+	}
+}
+
+Constant Filter
+{
+	-value
+	-comparator
+	-property
+
+	GetQuery(x)
+	{
+		return x property ?propVal. FILTER(comparator(?propVal, value)).
+	}
+}

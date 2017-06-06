@@ -1,23 +1,7 @@
 
-var pins = [];
+var resultSets = [];
 
-var pinListItems = [];
-
-var result = [];
-
-var filters = []
-
-var suggestions_all = [];
-
-var suggestions_lookup = [];
-
-var suggestions_solr = [];
-
-var searchObject;
-
-var leftObject;
-
-var rightObject;
+var activeResultSet;
 
 var init = true;
 
@@ -27,29 +11,18 @@ var searchInput = $("#search-input");
 
 var autocompleteList = $('#autocomplete');
 
+var filterSuggestionList = $('#filtersuggestions')
+
+var expandSuggestionList = $('#expandsuggestions')
+
 var searchReflexive = false;
 
-// *** HELPER FUNCTIONS ***
+var relatedSets = [];
 
-// Capitalizes the first letter of a string
-function capitalizeFirstLetter(string) {
-    return string.charAt(0).toUpperCase() + string.slice(1);
-}
+var activeTab;
 
-// Transforms the passed string to title case
-function toTitleCase(str) {
-    return str.replace(/(?:^|\s)\w/g, function(match) {
-        return match.toUpperCase();
-    });
-}
+var currentSuggestion;
 
-// Formats the given string to a unified format
-function formatName(str) {
-    return toTitleCase(str).replace(/(\s)/g, "").replace( /([A-Z])/g, " $1" ).slice(1);
-}
-
-
-// *** AUTO COMPLETE ***
 
 // Looks for changes in the search term
 setInterval(function() { 
@@ -58,58 +31,140 @@ setInterval(function() {
 	if(searchTerm != input) {
 		searchTerm = input;
 		
+		// adjust the width of the input field
 		var w = searchTerm.length * 12 + 30;
 		if(w > 200) {
 			$("#search-input").animate({ width: w }, 50);
 		}
 		
-		autoComplete();		
+		autoComplete(searchTerm);		
 	}
 	
 }, 50);
 
-// Runs the auto-complete for the text input
-function autoComplete() {
+
+function createEmptySet()
+{
+	$("#search-input").focus();
 	
-	// Clear all suggestions
-	suggestions_lookup = [];
-	suggestions_solr = [];
-	suggestions_all = [];
-	
-	$.when(getSolrSuggestions(), getLookupSuggestions()).done(function(solr, lookup) {
+	activeResultSet = createNewResultSet(null);
+	resultSets.push(activeResultSet);
+
+	update(activeResultSet);
+}
+
+
+// Handles tab press to shift through autocompleteSuggestions
+$("#search-input").keydown(function (e) {
+
+	if (e.which == 9) {
+	   e.preventDefault(); 
+	   
+	   if(autocompleteSuggestions.length > 0) {
+			autocompleteSuggestions.shift();
+	   }
+	   
+	   renderAutoComplete();
+	}
+});
+
+// Handles the click of the "+" button to add a new tab
+$("#add-button").click(function()
+{
+	activeResultSet = createNewResultSet();
+	resultSets.push(activeResultSet);
+
+	render();
+});
+
+/*
+// Handles the initial animation of the search bar
+$("#content").click(function() {
+	if($("#search-input").hasClass("hidden")) {
+		$("#search-input").toggleClass("hidden");
+		$("#search-icon").toggleClass("hidden");
 		
-		$.each(suggestions_solr, function( index, solr_class ) {
-		
-			var instUri = null;
-			
-			$.each(suggestions_lookup, function( index, lookup_instance ) {
-				if(solr_class.name == lookup_instance.name) {
-					instUri = lookup_instance.uri;
-					lookup_instance.add = false;
-				}
+		$("#search-bar").animate({ width: 100 + '%' }, 300, function() {
+			$("#search-input").animate({ width: 200 }, 300, function() {
+				$("#search-input").focus();
 			});
 			
-			var suggestion = { name: solr_class.name, uri : solr_class.uri, isClass : true, instanceUri : instUri };
-			suggestions_all.push(suggestion);
-		});
-		
-		$.each(suggestions_lookup, function( index, lookup_instance ) {
-			if(lookup_instance.add) {
-				var suggestion = { name: lookup_instance.name, uri : lookup_instance.uri, isClass : false, instanceUri : null };
-				suggestions_all.push(suggestion);
-			}
 		});	
+	}	
+});*/
+
+$('#filter-button').click(function()
+{	
+	if(autocompleteSuggestions.length > 0) 
+	{
+		var suggestion = autocompleteSuggestions[0];
+
+		if(activeResultSet == null)
+		{
+			activeResultSet = createNewResultSet(null);
+			resultSets.push(activeResultSet);
+		}
+
+		createFilter(activeResultSet, suggestion);
+	}
+});
+
+$('#expand-button').click(function()
+{
+	if(autocompleteSuggestions.length > 0) 
+	{
+		var suggestion = autocompleteSuggestions[0];
+
+		if(activeResultSet == null)
+		{
+			activeResultSet = createNewResultSet(null);
+			resultSets.push(activeResultSet);
+		}
+
+		createExpand(activeResultSet, suggestion);
+	}
+});
+
+
+/*
+// Handles submits on the search bar to add filters
+$("#search-bar").submit(function( event ) {
+	
+	event.preventDefault();
+
+	
+	if(autocompleteSuggestions_all.length > 0) 
+	{
+			
 		
-		printAutoComplete();
-	});
+		var suggestion = autocompleteSuggestions_all[0];
+
+		if(activeResultSet == null)
+		{
+			activeResultSet = createNewResultSet(null);
+			resultSets.push(activeResultSet);
+		}
+
+
+	createFilter(activeResultSet, suggestion);
+	}
+});
+*/ 
+
+// Animates the screen to the search setting
+function animateToSearchScreen()
+{
+	$("#content").animate({ marginTop: 0 }, 300, function() {});
+	$("#logo").animate({ height: 50 }, 300, function() {});
+	$("#pin-section").toggleClass("hidden");
 }
 
 // Renders the auto complete
-function printAutoComplete() {
+function renderAutoComplete() {
 	
 	autocompleteList.empty();
 	
-	$.each(suggestions_all, function( index, value ) {
+	$.each(autocompleteSuggestions, function( index, value ) {
 		
 		if(value.isClass) {
 			var listItem = $('<li/>')
@@ -126,409 +181,229 @@ function printAutoComplete() {
 			.appendTo(listItem);
 		}
 	});
+
+	
 }
 
-// Get the auto-complete suggestions from the class solr index
-function getSolrSuggestions() {
-	// Build the query...
-	var query = "http://localhost:8984/solr/factor_tool/suggest?wt=json&q=" + encodeURIComponent(searchTerm);
-	
-	// Send and return the query result
-	return $.ajax({
-		dataType: 'jsonp',
-		jsonp: 'json.wrf',
-		url: query,
-		success: function(data) {    
-			// Read the result and add it to suggestions_solr
-			var resultData = data.suggest.mySuggester[searchTerm].suggestions;
-			
-			for(var i = 0; i < Math.min(5, resultData.length); i++) {
-				suggestions_solr.push({ name: formatName(resultData[i].term), uri : resultData[i].payload, add : true });
-			}				
-		},
-		error: function(data) {
-			
-		}		
-	});
-}
+function renderSuggestions()
+{
+	filterSuggestionList.empty();
+	expandSuggestionList.empty();
 
-// Get the auto-complete suggestions from dbpedia lookup
-function getLookupSuggestions() {
-	// Build the query...
-	var query = "http://lookup.dbpedia.org/api/search/PrefixSearch?MaxHits=10&QueryString=" + encodeURIComponent(searchTerm);
-	
-	return $.ajax({
-		dataType: 'json',
-		url: query,
-		success: function(data) {    
-			// Read the result and add it to suggestions_lookup
-			for(var i = 0; i < Math.min(10, data.results.length); i++) {
-				suggestions_lookup.push({ name: formatName(data.results[i].label), uri : data.results[i].uri, add : true });				
-				
-			}	
-		},
-		error: function(data) {
-			
-		}		
-	});
-}
-
-// *** UI INPUTS ***
-
-$("#toggle-reflexive").click(function () {
-	searchReflexive = !searchReflexive;
-	$("#toggle-reflexive").toggleClass("on");
-	findFilters();
-});
-
-$("#search-input").keydown(function (e) {
-
-	if (e.which == 9) {
-	   e.preventDefault(); 
-	   
-	   if(suggestions_all.length > 0) {
-			suggestions_all.shift();
-	   }
-	   
-	   printAutoComplete();
-	}
-});
-
-$("#content").click(function() {
-	if($("#search-input").hasClass("hidden")) {
-		$("#search-input").toggleClass("hidden");
-		$("#search-icon").toggleClass("hidden");
-		
-		$("#search-bar").animate({ width: 100 + '%' }, 300, function() {
-			$("#search-input").animate({ width: 200 }, 300, function() {
-				$("#search-input").focus();
-			});
-			
-		});	
-	}	
-});
-
-$("#search-bar").submit(function( event ) {
-	
-	event.preventDefault();
-
-	if(suggestions_all.length > 0) {
-		
-		if(pins.length == 0) {
-			$("#content").animate({ marginTop: 0 }, 300, function() {
-				
-			});
-			
-			$("#logo").animate({ height: 50 }, 300, function() {
-				
-			});
-			
-			$("#pin-section").toggleClass("hidden");
-
-		}
-		
-		$("#search-input").val("");
-		
-		var suggestion = suggestions_all[0];
-		
-		var pin = { text: suggestion.name, uri: suggestion.uri, isClass: suggestion.isClass, instanceUri : suggestion.instanceUri };
-		
-		pushPin(pin);
-		findFilters ();
-	}
-});
-
-function findFilters() {
-	
-	filters = [];
-	
-	if(searchObject != null && searchObject.isClass && !(pins.length == 1 && !searchReflexive)) {
-		
-		$.each(pins, function( index, value ) {
-			
-			if(value != searchObject || searchReflexive) {
-				
-				var bidirectional = (value != searchObject);
-				
-				if(value.isClass) {
-					findClassFilters(value.text, value.uri, bidirectional)
-					
-					if(value.instanceUri != null) {
-						findInstanceFilters(value.text, value.instanceUri, bidirectional);
-					}
-				} else {
-					findInstanceFilters(value.text, value.uri, bidirectional);
-				}
-			}
-		});
-		
-	} else {
-		printFilters();
-	}
-}
-
-// Finds filters for class nodes with a uri and a bool indicating whether the search should be bidirectional
-function findClassFilters(queryClassName, queryClassUri, bidirectional) {
-	
-	var query = "SELECT distinct ?p ?x (count(?p) as ?c) WHERE {";
-	
-	query += "{ ?s ?p ?o BIND('true' AS ?x). ?s a <" + searchObject.uri + ">. ?o a <" + queryClassUri + ">. }";
-	
-	if(bidirectional) {
-		query += "UNION { ?o ?p ?s BIND('false' AS ?x). ?s a <" + searchObject.uri + ">. ?o a <" + queryClassUri + ">. }"
-	}
-	
-	query += "FILTER regex(?p, 'dbpedia.org/ontology') }";
-	
-	var target = { text: queryClassName, uri: queryClassUri, isClass: true };
-	var queryUrl = "http://dbpedia.org/sparql?default-graph-uri=http%3A%2F%2Fdbpedia.org&query="+ encodeURIComponent(query) +"&format=json";
-	queryFilters(queryUrl, target);
-}
-
-// Finds filters for instance nodes with a uri and a bool indicating whether the search should be bidirectional
-function findInstanceFilters(queryInstanceName, queryInstanceUri, bidirectional) {
-	var query = "SELECT distinct ?p ?x (count(?p) as ?c) WHERE {";
-	
-	query += "{ ?s ?p <" + queryInstanceUri + "> BIND('true' AS ?x). ?s a <" + searchObject.uri + ">. }";
-	
-	if(bidirectional) {
-		query += "UNION { <" + queryInstanceUri + "> ?p ?s BIND('false' AS ?x). ?s a <" + searchObject.uri + ">. }"
-	}
-	
-	query += "FILTER regex(?p, 'dbpedia.org/ontology') }";
-	
-	var target = { text: queryInstanceName, uri: queryInstanceUri, isClass: false };
-	var queryUrl = "http://dbpedia.org/sparql?default-graph-uri=http%3A%2F%2Fdbpedia.org&query="+ encodeURIComponent(query) +"&format=json";
-	queryFilters(queryUrl, target);
-}
-
-function queryFilters(queryUrl, targetObject) {
-	$.ajax({
-		dataType: 'json',
-		url: queryUrl,
-		success: function(data) {    
-			//Iterate over result set
-			for(i in data.results.bindings) {
-				//Get the result uri
-				var resultUri = data.results.bindings[i]["p"]["value"];
-				var resultPassive = data.results.bindings[i]["x"]["value"];
-				var resultCount = parseInt(data.results.bindings[i]["c"]["value"]);
-				//Get the property name from the uri
-				var resultText = resultUri.split('\\').pop().split('/').pop().replace(/([a-z](?=[A-Z]))/g, '$1 ').replace(/([A-Z])/g, function(str){ return str.toLowerCase(); });
-				
-				filters.push({ text: resultText, uri : resultUri, count : resultCount, active: false, passive: resultPassive, target: targetObject, inverse: false});
-			}
-			
-			
-			printFilters();
-		},
-		error: function(data) {
-			printFilters();
-		}
-	});
-}
-
-function printFilters() {
-	var list = $('#filter-list');
-	list.empty();
-	
-	if(filters.length == 0) {
-		$('#filter-section').addClass('hidden');
-	} else {
-		$('#filter-section').removeClass('hidden');
-	}
-	
-	sortFilters("count", false);
-	
-	$.each(filters, function( index, value ) {
-	
+	$.each(filterSuggestions, function( index, value ) {
 		var listItem = $('<li/>')
-			.addClass('list-item')
-			.attr('id', 'filter-' + index)
-			.appendTo(list);		
-		
-		if(filters[index].passive == 'true') {
-			var text = $('<a/>').text(searchObject.text + " with " + filters[index].text + " being " + filters[index].target.text + " (" + filters[index].count + " results)")
-			.addClass('list-item-text').appendTo(listItem);
-		} else {
-			var text = $('<a/>').text(searchObject.text + " being " + filters[index].text + " of " + filters[index].target.text + " (" + filters[index].count + " results)")
-			.addClass('list-item-text').appendTo(listItem);
-		}
-		
-		var negate = $('<i/>')
-			.text('add')
-			.appendTo(listItem)
-			.addClass('remove-button material-icons');
-		
+		.addClass('filter-suggestion')
+		.text(value.text)
+		.appendTo(filterSuggestionList);
+
 		listItem.click(function() {
-			if(!filters[index].active) {
-				filters[index].active = true;
-				filters[index].inverse = false;
-				negate.html('add');
-				$(this).toggleClass('active');	
-			} else if(!filters[index].inverse) {
-				filters[index].inverse = true;
-				negate.html('remove');
-			} else {
-				$(this).toggleClass('active');	
-				filters[index].active = false;
-			}
-			
-			search();	
+			value.execute();
 		});
-	});	
-}
-
-function sortFilters(prop, asc) {
-    filters = filters.sort(function(a, b) {
-        if (asc) {
-            return (a[prop] > b[prop]) ? 1 : ((a[prop] < b[prop]) ? -1 : 0);
-        } else {
-            return (b[prop] > a[prop]) ? 1 : ((b[prop] < a[prop]) ? -1 : 0);
-        }
-    });
-}
-
-// *** SEARCH ***
-
-function search() {
-	
-	result = [];
-	
-	if(searchObject == null || !searchObject.isClass) {
-		printResults();
-		return;
-	}
-	
-	//Build a query from the search object
-	var query = "SELECT distinct ?s WHERE { ?s a <" + searchObject.uri + ">.";
-	
-	var i = 0;
-	
-	$.each(filters, function( index, value ) {
-		
-		if(value.active) {
-			
-			if(value.inverse) {
-				query += " FILTER NOT EXISTS {";
-			}
-			
-			if(!value.target.isClass) {
-				if(value.passive == 'false') { 
-					query += " <" + value.target.uri + "> <" + value.uri + "> ?s.";
-				} else {
-					query += " ?s <" + value.uri + "> <" + value.target.uri + ">.";
-				}
-			} else {
-				var o = " ?o" + i;
-				
-				if(value.passive == 'false') {
-					query += o + " <" + value.uri + "> ?s." + o + " a <" + value.target.uri + ">."
-				} else {
-					query += " ?s <" + value.uri + "> " + o + " ." + o + " a <" + value.target.uri + ">."
-				}
-				
-				i++;
-			}
-			
-			if(value.inverse) {
-				query += "} ";
-			}
-		}
-	
 	});
-	
-	query += "} limit 200"
-	
-		
-	var queryUrl = "http://dbpedia.org/sparql?default-graph-uri=http%3A%2F%2Fdbpedia.org&query="+ encodeURIComponent(query);
-	//Send out the query via ajax
-	$.ajax({
-		dataType: 'json',
-		url: queryUrl,
-		success: function(data) {    
-		
-			
-			//Iterate over the results and add them to the result set
-			for(i in data.results.bindings) {
-				//Retrieve the uri
-				var resultUri = data.results.bindings[i]["s"]["value"];
-				//Extract the actual name from the uri
-				var resultText = resultUri.split('\\').pop().split('/').pop().split('_').join(' ');
-				result.push({ text: resultText, uri: resultUri, icon_url: 'img_avatar2.png', isClass: false });
-			}
-			
-			printResults();
-		},
-		error: function(data) {
-			printResults();
-		}		
-	});
-}
 
 
-function printResults() {
-	var list = $('#result-list');
-	list.empty();
-	
-	if(result.length == 0 ) {
-		$('#result-section').addClass('hidden');
-	} else {
-		$('#result-section').removeClass('hidden');
-	}
-		
-	$.each(result, function( index, value ) {
+	$.each(expandSuggestions, function( index, value ) {
 		var listItem = $('<li/>')
-			.addClass('list-item')
-			.attr('id', 'result-' + value.text)
-			.appendTo(list);
-		var text = $('<a/>')
-			.text(value.text)
-			.appendTo(listItem)
-			.addClass('list-item-text');
-			
+		.addClass('filter-suggestion')
+		.text(value.text)
+		.appendTo(expandSuggestionList);
+
 		listItem.click(function() {
-			pushPin(value);
-			findFilters();
+			value.execute();
 		});
 	});
 }
 
-// *** PINS ***
+// renders the main screen (result sets)
+function render()
+{
+	var sets = $('#result-sets');
+	var tabs = $('#result-tabs');
 
-function pushPin(pin) {
-	pins.push(pin);
-	printPins();
+	sets.empty();
+	tabs.empty();
+
+	$.each(resultSets, function(index, value) {
+
+		var tab = renderTab(value, index, tabs);
+
+		if(value == activeResultSet)
+		{
+			tab.addClass("active");
+			renderResultSet(activeResultSet, index, sets);
+		}
+	});
 }
 
+// Renders a tab for a given result set
+function renderTab(resultSet, index, node)
+{
+	var tab = $('<li/>')
+		.attr('id', 'tab-' + index)
+		.text('Search ' + index)
+		.appendTo(node);
 
-function printPins() {
-	var list = $('#pin-list')
-	list.empty();
+	var remove = $('<i/>')
+		.text('clear')
+		.appendTo(tab)
+		.addClass('remove-button material-icons');
 
-	if(pins.length == 0) {
-		$('#pin-section').addClass('hidden');
-	} else {
-		$('#pin-section').removeClass('hidden');
-	}
+	remove.click(function() {
+		if(resultSets.length > 1)
+		{
+			resultSets.splice(index, 1);
+			activeResultSet = resultSets.length > index ? resultSets[index] : resultSets[index - 1];
+			render();
+		}
+	});
+
+	tab.click(function() {
+		activeResultSet = resultSet;
+		update(activeResultSet);
+	});
+
+	return tab;
+}
+
+// Renders the given result set
+function renderResultSet(resultSet, index, node)
+{
+	var set = $('<div/>')
+		.attr('id', 'set-' + index)
+		.addClass("section")
+		.appendTo(node);
+
+	renderHeader(resultSet, set);
+	renderFilters(resultSet, set);
+	renderResults(resultSet, set);
+}
+
+// Renders the header of the given result set
+function renderHeader(resultSet, node)
+{
+	var header = $('<div/>')
+		.addClass('result-header')
+		.appendTo(node);
+
+	var desc = $('<ul/>')
+		.addClass('result-description')
+		.appendTo(header);
+
 	
-	$.each(pins, function( index, value ) {
+
+	renderTitle(resultSet, desc);
+
+
+	var expandRight = $('<li/>')
+		.addClass('expand-button')
+		.text('>')
+		.appendTo(desc);
+
+	var desc2 = $('<div/>')
+		.text(resultSet.results.length + ' Results')
+		.addClass('result-amount')
+		.appendTo(header);
+
+
+	expandRight.click(function() {
+		createOpenExpand();
+		update(activeResultSet);
+	});
+
+	/*
+	var related = $('<select/>')
+		.addClass('result-related')
+		.appendTo(header);
+	*/
+	
+}
+
+function renderTitle(resultSet, node)
+{
+	var title = $('<li/>')
+	.addClass('set-title')
+	.text(getSetDescription(resultSet))
+	.appendTo(node);
+
+	title.click(function() {
+		activeResultSet = resultSet;
+		update(activeResultSet);
+	});
+
+	if(resultSet.base != null)
+	{
+		renderExpand(resultSet, node);
+		renderTitle(resultSet.base, node);
+	}
+}
+
+function renderExpand(resultSet, node)
+{
+	var title = $('<select/>')
+		.addClass('expand-title')
+		.text('kek')
+		.appendTo(node);
+
+	var listItem = $('<option/>')
+		.text(getExpandDescription(resultSet))
+		.appendTo(title);
+
+	$.each(resultSet.expands, function( index, value ) {
+		var listItem = $('<option/>')
+			.text(value.name)
+			.appendTo(title);
+
+		title.change(function() {
+			resultSet.currentExpand = resultSet.expands[this.selectedIndex];
+			update(resultSet);				
+		});
+	});
+	
+}
+
+// Renders the filters of the given result set
+function renderFilters(resultSet, node)
+{
+	var filterSection = $('<div/>')
+		.addClass('filter-section')
+		.appendTo(node);
+
+	var filterList = $('<ul/>')
+		.addClass('filter-list')
+		.appendTo(filterSection);
+
+	filterList.empty();
+
+	$.each(resultSet.filters, function( index, value ) {
 		
 		var listItem = $('<li/>')
-			.addClass('list-item')
+			.addClass('pin-item')
 			.attr('id', 'pin-' + index)
-			.appendTo(list);
-		if(value.isClass) {
-			var text = $('<a/>')
-			.text(value.text + " (Class)")
-			.appendTo(listItem)
-			.addClass('list-item-text');
-		} else {
-			var text = $('<a/>')
-			.text(value.text)
-			.appendTo(listItem)
-			.addClass('list-item-text');
+			.appendTo(filterList);
+		var selectBox = $('<select/>')
+			.addClass("pin-selector")
+			.appendTo(listItem);
+
+		if(value.type == "instance")
+		{
+			selectBox.change(function() {
+				value.currentProperty = value.properties[this.selectedIndex];
+				update(activeResultSet);				
+			});
+
+			$.each(value.properties, function(index, valueRel) {
+				var option = $('<option/>')
+				.text(valueRel.name)
+				.appendTo(selectBox);
+			});
+
+			selectBox.val(value.currentProperty.name);
 		}
+
+		var name = $('<a/>')
+			.text(value.name)
+			.appendTo(listItem);
+		
 		var remove = $('<i/>')
 			.text('clear')
 			.appendTo(listItem)
@@ -536,50 +411,71 @@ function printPins() {
 			
 			
 		remove.click(function() {
-
-			if(searchObject == pins[index]) {
-				searchObject = null;
-			}			
-
-			pins.splice(index, 1);
-			printPins();
-
-			findFilters();
-			search();	
+			resultSet.filters.splice(index, 1);
+			update(activeResultSet);	
 		});
-	
-		listItem.click(function() {
-			
-			searchObject = pins[index];
-			
-			togglePin('pin-' + index);
-	
-			findFilters();
-			search();						
-			
-		});
-		
-		if(searchObject != null && searchObject.uri == pins[index].uri) {
-			togglePin('pin-' + index);
-		}
-	
-			
-	
 	});
 }
 
-function togglePin(id) {
-	var list = $('#pin-list').find('.active');
-	list.removeClass('active');
-	$('#' + id).addClass('active');	
+// Renders the list of results
+function renderResults(resultSet, node) {
+
+	var resultList = $('<ul/>')
+		.addClass('result-list')
+		.appendTo(node);
+	
+	resultList.empty();
+
+	$.each(resultSet.results, function(index, value) {
+		var listItem = $('<li/>')
+			.addClass('list-item')
+			.attr('id', 'result-' + value.name)
+			.appendTo(resultList);
+
+		var text = $('<a/>')
+			.text(maxLength(value.name, 60) + " (" + value.uri + ")")
+			.appendTo(listItem)
+			.addClass('list-item-text');
+
+
+
+
+		trace(resultSet, value, listItem);
+
+		var search = $('<i/>')
+			.text('search')
+			.appendTo(listItem)
+			.addClass('result-button material-icons');
+
+		var add = $('<i/>')
+			.text('add')
+			.appendTo(listItem)
+			.addClass('result-button material-icons');
+
+		add.click(function() {
+			addFilter(value);
+		});
+
+		search.click(function() {
+			newSet();
+			addFilter(value);
+		});
+	});
 }
 
 
 
-
-
-
-
-
-
+function printRelatedSets() {
+	var list = $('#related-select')
+	list.empty();
+	
+	
+	$.each(relatedSets, function( index, value ) {
+		
+		var listItem = $('<option/>')
+			.text(value.dir + " " + value.name + " (" + value.uri + ")")
+			.appendTo(list);
+	
+	});
+}
 

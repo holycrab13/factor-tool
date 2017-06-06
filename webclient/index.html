@@ -9,10 +9,10 @@
 		<link rel="stylesheet" href="style.css">
 	</head>
 	
-	
-	<body>
+	<body onload="createEmptySet();">
 	
 		<div id="content"> 
+			<!--
 			<img id="logo" src="logo.png"></img>						
 			<form id="search-bar">
 				<div class="inline-table">
@@ -32,24 +32,42 @@
 						</div>
 					</div>
 				</div>
+			</form>-->
+			
+			<form id="search-bar">
+				<div class="inline-table">
+					<div class="inline-row">
+						<div id="input-cell" class="inline-cell">
+							<!--<img id="search-icon" src="search_icon.png"></img>-->
+							<input id="search-input" autocomplete="off"></input>
+							<input type="submit" style="position: absolute; left: -9999px"/>
+						</div>
+						<div class="inline-cell arrow-cell blue">
+							<div class="arrow-right"></div>
+						</div>
+						<div id="autofill-cell" class="inline-cell">
+							<ul id="autocomplete">
+							
+							</ul>
+						</div>
+					</div>
+				</div>
+
+				<ul id="filtersuggestions" class="suggestion-list"></ul>
+				<ul id="expandsuggestions" class="suggestion-list"></ul>
 			</form>
-			
-			<div class="sections">
-				<div id="pin-section" class="section hidden" >
-					<div class="section-header">Search Bag<i id="toggle-reflexive" class="material-icons">settings_backup_restore</i></div>
-					<ul id="pin-list"></ul>
-				</div>
-				
-				<div id="filter-section" class="section hidden">
-					<div class="section-header">Filters</div>
-					<ul id="filter-list"></ul>
-				</div>
-				
-				<div id="result-section" class="section hidden">
-					<div class="section-header">Results</div>
-					<ul id="result-list"></ul>
+
+		
+
+			<!--<textarea id="query_output" cols="100" rows="10"></textarea>-->
+			<div id="search-section">
+				<div id="tab-section">
+					<ul id="result-tabs"></ul>
+					<div id="add-button">+</div>
 				</div>
 			
+			<div id="result-sets">
+				
 			</div>
 		</div>
 			
@@ -65,6 +83,10 @@
 	
 	</body>
 	<script type="text/javascript" src="todo.js"></script>
+	<script type="text/javascript" src="search.js"></script>
+	<script type="text/javascript" src="format.js"></script>
+	<script type="text/javascript" src="autocomplete.js"></script>
+	<script type="text/javascript" src="trace.js"></script>
 	
 </html>
 
